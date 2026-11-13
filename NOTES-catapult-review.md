@@ -142,10 +142,28 @@ Not yet applied — for your review first.
 
 - The hub's own copy of `MecanumDrive.java` has a stray
   `@TeleOp(name = "TeleOp2026", group = "Test")` on a class that is not an
-  OpMode, duplicating the name on `CatapultOpMode`. **The hub as it stands
-  probably does not build.** Your local edit already removed it. This is a
-  good reason to deploy from this folder rather than edit on the hub.
+  OpMode, duplicating the name on `CatapultOpMode`. Checked by compiling
+  both against SDK stubs: this **compiles fine**, so the hub build succeeds.
+  The problem is at registration — the Driver Station gets two entries
+  named "TeleOp2026", one of them a class that is not an OpMode. Your local
+  edit already removed it. Still a good reason to deploy from this folder
+  rather than edit on the hub.
 - `scripts/deploy-to-robot.sh` does `rm -f $HUB_TEAMCODE/*.java`, which
   removes the 39 archived files from the robot. That is the intent, but it
   is worth saying out loud: after a deploy the robot will hold exactly two
   programs, and the old seasons' code will exist only in this repo.
+
+
+## Verified by compiling
+
+There is no FTC SDK on this laptop, so I wrote minimal stub classes for the
+SDK types these files use and compiled against them. That checks syntax,
+types and control flow — not SDK behaviour.
+
+- `teamcode/RobotBringUp.java` — compiles clean with `-Xlint:all`, no warnings
+- `teamcode/MecanumDrive.java` — compiles clean
+- `teamcode/CatapultOpMode.java` (909) — compiles
+- build 907's `CatapultOpMode.java` — compiles
+
+So both candidate bases are buildable, and the choice between them is about
+behaviour, not compilation.
