@@ -20,13 +20,18 @@ fi
 
 adb -s "$HUB" forward "tcp:$PORT" "tcp:$PORT" >/dev/null
 
-# Let any just-pushed file settle before the build reads the source directory.
-# A build started in the same breath as an adb push can miss the new file and
-# still report success, leaving the old class (or no class) on the hub.
-sync_wait=1
-sleep "$sync_wait"
-
+# A build started too soon after an adb push can read the source directory
+# before the new file lands, then report success having compiled without it.
+# One second was not enough in practice, so wait for the hub's own view of the
+# sources to stop changing before starting.
 BEFORE=$(adb -s "$HUB" shell 'ls /sdcard/FIRST/java/src/org/firstinspires/ftc/teamcode/*.java' </dev/null | tr -d '\r' | wc -l | tr -d ' ')
+settle_prev=""
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  settle_now=$(adb -s "$HUB" shell 'ls -l /sdcard/FIRST/java/src/org/firstinspires/ftc/teamcode/' </dev/null | tr -d '\r' | md5 2>/dev/null || true)
+  if [ -n "$settle_prev" ] && [ "$settle_now" = "$settle_prev" ]; then break; fi
+  settle_prev="$settle_now"
+  sleep 1
+done
 
 BASE="http://127.0.0.1:$PORT"
 code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$BASE/java/build/start")
@@ -57,8 +62,22 @@ echo "Build successful ($WHEN)."
 CLASSES=$(adb -s "$HUB" shell 'ls /sdcard/FIRST/java/build/classes/org/firstinspires/ftc/teamcode/*.class' </dev/null | tr -d '\r' | grep -vc '\$' || true)
 if [ "${CLASSES:-0}" -lt "${BEFORE:-0}" ]; then
   echo
-  echo "WARNING: $BEFORE source file(s) but only $CLASSES class(es)."
-  echo "Run this script again -- a file may have been pushed mid-build."
+  echo "$BEFORE source file(s) but only $CLASSES class(es) -- rebuilding once."
+  curl -s -o /dev/null --max-time 20 "$BASE/java/build/start"
+  curl -s --max-time 180 "$BASE/java/build/wait" >/dev/null || true
+  LOG=$(adb -s "$HUB" shell 'cat /sdcard/FIRST/java/status/buildLog.txt' </dev/null | tr -d '\r')
+  if [ -n "$LOG" ]; then
+    echo
+    echo "BUILD FAILED on retry:"
+    echo "$LOG"
+    exit 1
+  fi
+  CLASSES=$(adb -s "$HUB" shell 'ls /sdcard/FIRST/java/build/classes/org/firstinspires/ftc/teamcode/*.class' </dev/null | tr -d '\r' | grep -vc '\$' || true)
+  if [ "${CLASSES:-0}" -lt "${BEFORE:-0}" ]; then
+    echo "Still $CLASSES class(es) for $BEFORE source(s). Something else is wrong."
+    exit 1
+  fi
+  echo "Retry produced all $CLASSES class(es)."
 fi
 echo
 echo "Classes on the hub:"

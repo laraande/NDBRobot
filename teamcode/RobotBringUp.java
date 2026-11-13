@@ -169,7 +169,10 @@ public class RobotBringUp extends LinearOpMode {
             // alternates, because a worn bumper should not be able to strand
             // the whole session in test 1 the way it did on 2026-11-12.
             boolean lb = gamepad1.left_bumper  || gamepad1.dpad_left;
-            boolean rb = gamepad1.right_bumper || gamepad1.dpad_right || gamepad1.start;
+            // START is deliberately NOT a next-test control: on a Logitech F310
+            // gamepad1.options IS the START button, and test 4 uses it to zero
+            // the heading. One physical button cannot do both.
+            boolean rb = gamepad1.right_bumper || gamepad1.dpad_right;
 
             // Log any press, even one that changes nothing, so the CSV shows
             // whether a control is reaching the robot at all.
@@ -415,7 +418,7 @@ public class RobotBringUp extends LinearOpMode {
 
     private void showTelemetry() {
         telemetry.addData("TEST", "%d of %d   %s", test, LAST_TEST, testName());
-        telemetry.addLine("NEXT TEST: right bumper, or dpad RIGHT, or START");
+        telemetry.addLine("NEXT TEST: right bumper, or dpad RIGHT");
         telemetry.addLine("PREV TEST: left bumper, or dpad LEFT");
         telemetry.addLine("BACK = mark the log");
         telemetry.addLine("");
@@ -458,7 +461,9 @@ public class RobotBringUp extends LinearOpMode {
                 }
                 break;
             case 4:
-                telemetry.addLine("Right stick X turns in place. OPTIONS zeroes.");
+                telemetry.addLine("Right stick X turns in place.");
+                telemetry.addLine("Press START (the OPTIONS button) to zero.");
+                telemetry.addLine("Turning LEFT should make the heading go UP.");
                 telemetry.addLine("Check: turning LEFT should make heading go UP.");
                 telemetry.addData("Heading (deg)", "%.1f",
                         drive == null ? 0.0 : drive.getHeadingDeg());
