@@ -10,9 +10,21 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 public class MecanumDrive {
 
     // ===== SETTINGS =====
-    static final DcMotorSimple.Direction FL_DIR = DcMotorSimple.Direction.REVERSE;
-    static final DcMotorSimple.Direction BL_DIR = DcMotorSimple.Direction.REVERSE;
-    static final DcMotorSimple.Direction FR_DIR = DcMotorSimple.Direction.FORWARD;
+    // Measured on the robot with RobotBringUp test 1 on 2026-11-12. Each motor
+    // was run at FORWARD with no direction applied, and the wheel that moved
+    // was noted along with which way it would have driven the robot:
+    //
+    //     front left   spun forward   -> FORWARD
+    //     front right  spun BACKWARD  -> REVERSE
+    //     back left    spun forward   -> FORWARD
+    //     back right   spun forward   -> FORWARD
+    //
+    // Only the front right is physically reversed. To re-measure after any
+    // rewiring, run "0 BringUp" test 1 again: a wheel that drives the robot
+    // backward needs REVERSE here, one that drives it forward needs FORWARD.
+    static final DcMotorSimple.Direction FL_DIR = DcMotorSimple.Direction.FORWARD;
+    static final DcMotorSimple.Direction BL_DIR = DcMotorSimple.Direction.FORWARD;
+    static final DcMotorSimple.Direction FR_DIR = DcMotorSimple.Direction.REVERSE;
     static final DcMotorSimple.Direction BR_DIR = DcMotorSimple.Direction.FORWARD;
 
     // How the Control Hub is mounted on the robot (field-centric only).

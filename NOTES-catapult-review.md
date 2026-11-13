@@ -167,3 +167,58 @@ types and control flow — not SDK behaviour.
 
 So both candidate bases are buildable, and the choice between them is about
 behaviour, not compilation.
+
+
+## Measured on the robot, 2026-11-12
+
+First bring-up run. `logs/bringup-2026-11-12-215603.csv`, 1718 samples.
+
+### Wheel directions (test 1) — SETTLED
+
+Each motor was run at FORWARD with no direction constant applied, and the
+operator noted which wheel moved and which way it would drive the robot:
+
+| Button | Wheel | Spun | So the constant must be |
+|---|---|---|---|
+| X | front left | forward | `FORWARD` |
+| Y | front right | **backward** | `REVERSE` |
+| A | back left | forward | `FORWARD` |
+| B | back right | forward | `FORWARD` |
+
+Every button moved the corner it was supposed to, so no ports are swapped in
+`2026-2027.xml`.
+
+Three of the four constants in `MecanumDrive` were wrong. The old values were
+FL/BL `REVERSE` and FR/BR `FORWARD` — the usual mirrored-pair assumption. This
+robot is not mirrored: only the front right is physically reversed. Driving
+with the old values would have made the robot turn instead of going straight.
+
+Now applied and built onto the hub (build at 22:07, clean log).
+
+### Still unmeasured
+
+The run stayed in test 1, so these are still unknown and still guesses:
+
+- `DEFAULT_RELEASE_TICKS` — needs test 3 (jog, press X)
+- `STALL_CURRENT_A` — needs test 3's peak current over three fires
+- `OVERSHOOT_COMP` — needs the operator to watch whether the arm coasts past
+- Stick-to-motion check — needs test 2
+- `LOGO_DIR` / `USB_DIR` and field-centric — needs test 4
+
+Catapult ticks never left 0 and current never exceeded 0.01 A in this run.
+
+## Build endpoint, for the record
+
+OnBot Java's build is driven over HTTP:
+
+- `GET /java/build/start` starts it (200). **Not** `start_build.json`, which
+  404s; an earlier note here claimed that worked, and it did not — that first
+  build was started by hand on the web page.
+- `GET /java/build/wait` blocks until the build finishes.
+- `/sdcard/FIRST/java/status/buildLog.txt` is empty on success and holds the
+  compiler errors on failure.
+
+`scripts/build-on-robot.sh` wraps this. It tunnels through adb because a
+laptop tethered to a phone while on the robot's Wi-Fi has two default routes,
+and direct HTTP to 192.168.43.1 fails with "no route to host" even though adb
+and ping work.
