@@ -66,7 +66,11 @@ public class RobotBringUp extends LinearOpMode {
     static final double WHEEL_TEST_POWER = 0.30;
     static final double DRIVE_SLOW       = 0.30;
     static final double DRIVE_FULL       = 1.00;
-    static final double JOG_POWER_TEST   = 0.25;
+    // Raised from 0.25 on 2026-11-12: at 0.25 the arm only whined and
+    // twitched, drawing 1-2 A without turning the encoder. A catapult arm
+    // usually works against a spring or tubing, so it needs real power just
+    // to move. Still well under a hard throw.
+    static final double JOG_POWER_TEST   = 0.55;
     static final double FIRE_POWER_TEST  = 0.50;
     static final double RETURN_POWER_TEST = 0.35;
 
@@ -93,6 +97,11 @@ public class RobotBringUp extends LinearOpMode {
     private final ElapsedTime fireTimer = new ElapsedTime();
 
     private int marks = 0;
+    private boolean wasJogging = false;
+    private boolean jogStalled = false;
+    private int jogStartTicks = 0;
+    private final ElapsedTime jogTimer = new ElapsedTime();
+    static final double JOG_STALL_SEC = 0.6;
     private String lastButtons = "";
 
     @Override
@@ -270,15 +279,49 @@ public class RobotBringUp extends LinearOpMode {
             return;
         }
 
-        // Manual jog, slow.
-        if (gamepad2.dpad_up) {
+        // Manual jog. Tracks whether the arm is actually turning, so a motor
+        // that is pushing without moving can be reported instead of left for
+        // the operator to diagnose by ear.
+        boolean jogging = gamepad2.dpad_up || gamepad2.dpad_down;
+        if (jogging) {
             catapult.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            catapult.setPower(JOG_POWER_TEST);
-        } else if (gamepad2.dpad_down) {
-            catapult.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            catapult.setPower(-JOG_POWER_TEST);
-        } else if (catapult.getMode() == DcMotor.RunMode.RUN_WITHOUT_ENCODER) {
-            catapult.setPower(0);
+            catapult.setPower(gamepad2.dpad_up ? JOG_POWER_TEST : -JOG_POWER_TEST);
+
+            if (!wasJogging) {
+                jogStartTicks = pos;
+                jogTimer.reset();
+                wasJogging = true;
+                writeRow("JOG_START", "from " + pos + " ticks");
+            }
+
+            // Pushing hard for a while with no tick change at all: either the
+            // arm is stuck or the encoder is not reporting. Cut power so the
+            // motor is not held stalled, and say which it looks like.
+            if (jogTimer.seconds() > JOG_STALL_SEC) {
+                int moved = Math.abs(pos - jogStartTicks);
+                if (moved < 3 && amps > 1.0) {
+                    catapult.setPower(0);
+                    jogStalled = true;
+                    writeRow("JOG_STALL", "no movement in "
+                            + String.format(Locale.US, "%.1f", jogTimer.seconds())
+                            + "s at " + String.format(Locale.US, "%.2f", amps) + " A");
+                    jogTimer.reset();
+                } else if (moved >= 3) {
+                    jogStalled = false;
+                    jogStartTicks = pos;
+                    jogTimer.reset();
+                }
+            }
+        } else {
+            if (wasJogging) {
+                writeRow("JOG_END", "moved "
+                        + (catapult.getCurrentPosition() - jogStartTicks) + " ticks");
+                wasJogging = false;
+                jogStalled = false;
+            }
+            if (catapult.getMode() == DcMotor.RunMode.RUN_WITHOUT_ENCODER) {
+                catapult.setPower(0);
+            }
         }
     }
 
@@ -405,6 +448,14 @@ public class RobotBringUp extends LinearOpMode {
                 telemetry.addData("Peak this session", "%d ticks, %.2f A",
                         peakTicks, peakAmps);
                 telemetry.addData("Firing", firing);
+                if (jogStalled) {
+                    telemetry.addLine("");
+                    telemetry.addLine(">>> MOTOR PUSHING BUT NOT TURNING <<<");
+                    telemetry.addLine("Power cut to protect the motor.");
+                    telemetry.addLine("Either the arm is stuck, or the encoder");
+                    telemetry.addLine("cable is not plugged in. Let go of the");
+                    telemetry.addLine("dpad, then watch the arm as you tap it.");
+                }
                 break;
             case 4:
                 telemetry.addLine("Right stick X turns in place. OPTIONS zeroes.");
