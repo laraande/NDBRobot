@@ -29,24 +29,24 @@ public class MecanumDrive {
 
     // How the Control Hub is mounted on the robot (field-centric only).
     //
-    // Observed 2026-11-12: the Control Hub stands VERTICALLY on edge above the
-    // Expansion Hub, with its USB/HDMI port edge facing straight up and its
-    // logo face in a vertical plane. The front of the robot is the end away
-    // from the catapult.
+    // Measured on the robot 2026-11-12 with "0 BringUp" test 4, not guessed.
     //
-    // USB_DIR = UP is certain from the photos. LOGO_DIR is a hypothesis: with
-    // the ports up, the logo must point horizontally, so it is one of LEFT,
-    // RIGHT, FORWARD or BACKWARD. Test 4 of "0 BringUp" tells us which:
+    // The Control Hub stands VERTICALLY on edge above the Expansion Hub, with
+    // its USB/HDMI port edge facing straight up and its logo face in a
+    // vertical plane. The front of the robot is the end away from the
+    // catapult.
     //
-    //   heading counts UP when turning left  -> this pair is correct
-    //   heading counts DOWN                  -> logo is 180 degrees out,
-    //                                           swap LEFT<->RIGHT (or
-    //                                           FORWARD<->BACKWARD)
-    //   heading barely moves at all          -> the yaw axis is wrong, so the
-    //                                           logo points along a different
-    //                                           axis than assumed
+    // Test 4 result: zeroing the heading and turning the robot left gave
+    // +58 degrees at a quarter turn. The log (logs/bringup-2026-11-12-231838.csv)
+    // shows three turns, two left and one right, reading +150, +101 and -117,
+    // tracking smoothly across the full -180..+180 range and holding steady
+    // when stationary. Left turns read positive, which is what the SDK
+    // expects, so this pair is correct.
     //
-    // Do not trust field-centric until test 4 has passed.
+    // To re-check after remounting the hub: run test 4, zero with START, turn
+    // left. Positive means these are right. Negative means the logo is 180
+    // degrees out (swap LEFT and RIGHT). A heading that barely moves means the
+    // logo points along a different axis entirely.
     static final RevHubOrientationOnRobot.LogoFacingDirection LOGO_DIR =
             RevHubOrientationOnRobot.LogoFacingDirection.LEFT;
     static final RevHubOrientationOnRobot.UsbFacingDirection USB_DIR =

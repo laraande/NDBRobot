@@ -287,6 +287,32 @@ The catapult cannot be run in any position-controlled mode without this.
 limit all read the encoder, so the current `CatapultOpMode` would believe
 the arm is permanently at 0 and never reach its release point.
 
+### IMU orientation (test 4) — CONFIRMED 2026-11-12 23:18
+
+`logs/bringup-2026-11-12-231838.csv`, 3645 samples in test 4.
+
+The Control Hub is mounted vertically on edge, ports facing up, so the
+old `LOGO_DIR = UP` / `USB_DIR = FORWARD` could not have been right.
+
+Measured: zero the heading, turn left, read +58 degrees at a quarter
+turn. The log shows three turns across the session:
+
+| Turn | Heading | Direction |
+|---|---|---|
+| t=26-30 | 0 to -117 | right |
+| t=60-65 | 0 to +150 | left |
+| t=71-77 | 0 to +101 | left |
+
+Left turns read positive, which is the SDK's convention, so
+`LOGO_DIR = LEFT` and `USB_DIR = UP` are correct.
+
+The IMU is also healthy in its own right: it tracks smoothly across the
+full -180..+180 range, responds proportionally, and holds a steady value
+when the robot is still, with no drift visible over the run.
+
+Field-centric driving is therefore safe to enable whenever it is wanted.
+It stays off by default until a driver asks for it.
+
 ### Still unmeasured
 
 The run stayed in test 1, so these are still unknown and still guesses:
