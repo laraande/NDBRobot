@@ -216,6 +216,43 @@ Not covered by this run: rotation (no turn samples, the right stick was
 not used) and full speed (peak power was 0.21, the right trigger was not
 held).
 
+### Catapult (test 3) — BLOCKED, encoder reads nothing
+
+`logs/bringup-2026-11-12-222217.csv`, 132 s in test 3. The operator
+reported the arm "didn't seem to have enough power to move".
+
+The log says something more specific:
+
+- The motor drew **1-2 A for 12.25 s** across 245 samples, so it was
+  energised and pushing.
+- The encoder reported **0 ticks the entire time**. Not a small number:
+  exactly zero, start to finish.
+- Peak current 2.11 A, well under this motor's ~9 A stall, so it was not
+  straining against a hard jam.
+
+Current without motion means the motor is being driven but the Control
+Hub cannot see the result. Most likely causes, in order:
+
+1. **Encoder cable not connected** at the motor or at Expansion Hub
+   port 0. The 4-pin JST is separate from the motor power leads and is
+   easy to leave off.
+2. **Mechanical bind**, or 25% jog power genuinely too low for this
+   mechanism's gearing and spring.
+3. Motor wired to a different port than the configuration says, though
+   current is being drawn on the `catapult` device, which argues against
+   this.
+
+The Expansion Hub itself is fine: module 2 is detected and talking in the
+Robot Controller log at 22:19:41.
+
+**Nothing in the code can be tuned around this.** `DEFAULT_RELEASE_TICKS`,
+`STALL_CURRENT_A` and `OVERSHOOT_COMP` all depend on encoder feedback, so
+they stay unmeasured until the arm moves and the ticks change.
+
+The distinguishing check for next session: press D-pad UP and watch the
+arm. If it moves at all while the screen stays at 0 ticks, it is the
+encoder cable. If it does not move, it is mechanical or power.
+
 ### Still unmeasured
 
 The run stayed in test 1, so these are still unknown and still guesses:
