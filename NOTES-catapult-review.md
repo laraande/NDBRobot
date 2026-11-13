@@ -253,6 +253,40 @@ The distinguishing check for next session: press D-pad UP and watch the
 arm. If it moves at all while the screen stays at 0 ticks, it is the
 encoder cable. If it does not move, it is mechanical or power.
 
+### Catapult encoder — CONFIRMED DEAD 2026-11-12 22:30
+
+`logs/bringup-2026-11-12-223000.csv`, jog power raised to 0.55.
+
+The arm **moved** this time, which the operator confirmed by eye, so the
+earlier whine-and-twitch was simply too little power for a loaded arm.
+
+The encoder is a separate fault and it is now proven:
+
+- 668 samples in the file, **every one reads exactly 0 ticks**.
+- Peak current 3.99 A, so the motor was working hard and really turning.
+- `JOG_END` rows report "moved 0 ticks" for jogs where the arm visibly
+  moved.
+
+A value that never changes while the shaft turns is not drift or noise.
+The encoder channel is not reporting at all.
+
+**What to check on the robot**, in order:
+
+1. The 4-pin JST encoder cable at the motor end. Separate from the two
+   thick power leads and easy to leave unplugged.
+2. The same cable at **Expansion Hub 2, motor port 0** -- the encoder
+   socket beside the motor power socket, not the power socket itself.
+3. The cable itself, if both ends are seated: swap it for a known-good
+   one, or move the motor to another port and update the configuration.
+
+Until ticks change, these stay unmeasurable:
+`DEFAULT_RELEASE_TICKS`, `STALL_CURRENT_A`, `OVERSHOOT_COMP`.
+
+The catapult cannot be run in any position-controlled mode without this.
+`RUN_TO_POSITION` for the return home, the release point and the travel
+limit all read the encoder, so the current `CatapultOpMode` would believe
+the arm is permanently at 0 and never reach its release point.
+
 ### Still unmeasured
 
 The run stayed in test 1, so these are still unknown and still guesses:
