@@ -1,3 +1,6 @@
 # Raw copies pulled off the Control Hub (large, includes build output and jars)
 hub-snapshots/
 .DS_Store
+
+# Compile-check output
+tools/out/

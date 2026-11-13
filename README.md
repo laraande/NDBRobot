@@ -9,6 +9,7 @@ Code for the FTC robot, written in OnBot Java and run on a REV Control Hub.
 | `teamcode/` | The current season's code. This is exactly what goes on the robot. |
 | `config/` | The robot's hardware configuration (`2026-2027.xml`), for reference. Older ones are in `config/archive/`. |
 | `scripts/` | Connect to the robot, copy code off it, and load code onto it. |
+| `tools/lib/` | The Control Hub's own copies of the FTC SDK, used to check code on the laptop. |
 | `archive/through-2025-26/` | All code from earlier seasons. Not loaded onto the robot. |
 | `history/onbot-builds/` | The Control Hub's own backup of every build from Feb 5 to Nov 12, 2026. |
 | `hub-snapshots/` | Raw copies pulled off the robot. Kept on this laptop only, not in git. |
@@ -35,6 +36,27 @@ These names come from the `2026-2027` configuration on the robot.
 
 The configuration itself is edited on the Driver Station (Configure Robot). The
 copy in `config/` is a record, and the scripts do not change it.
+
+## Checking code before deploying
+
+Run this on the laptop, with or without the robot:
+
+```
+scripts/check-code.sh
+```
+
+It compiles `teamcode/` in a couple of seconds and reports typos, wrong method
+names, missing imports and type mistakes, so OnBot Java's **Build Everything**
+is not the first place an error turns up. Pass a folder to check a different
+one, for example `scripts/check-code.sh archive/through-2025-26/teamcode`.
+
+It does **not** check hardware names, ports, or how the robot behaves -- only
+that the code compiles. Nothing is sent to the robot.
+
+This needs no internet and no Android Studio: `tools/lib/` holds the Control
+Hub's own SDK jars, pulled off the robot on 2026-11-12. If the SDK on the robot
+is ever updated, copy the new jars from
+`hub-snapshots/<date>/FIRST/java/lib/` over the ones in `tools/lib/`.
 
 ## Working with the robot
 
