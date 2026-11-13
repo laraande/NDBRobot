@@ -9,6 +9,8 @@ Code for the FTC robot, written in OnBot Java and run on a REV Control Hub.
 | `teamcode/` | The current season's code. This is exactly what goes on the robot. |
 | `config/` | The robot's hardware configuration (`2026-2027.xml`), for reference. Older ones are in `config/archive/`. |
 | `scripts/` | Connect to the robot, copy code off it, and load code onto it. |
+| `docs/` | Guides: setup, hardware, logging, troubleshooting, calibration. |
+| `logs/` | CSV logs pulled off the robot during testing. |
 | `tools/lib/` | The Control Hub's own copies of the FTC SDK, used to check code on the laptop. |
 | `archive/through-2025-26/` | All code from earlier seasons. Not loaded onto the robot. |
 | `history/onbot-builds/` | The Control Hub's own backup of every build from Feb 5 to Nov 12, 2026. |
@@ -58,25 +60,39 @@ Hub's own SDK jars, pulled off the robot on 2026-11-12. If the SDK on the robot
 is ever updated, copy the new jars from
 `hub-snapshots/<date>/FIRST/java/lib/` over the ones in `tools/lib/`.
 
-## Calibrating the catapult
+## Documentation
 
-[CATAPULT-CALIBRATION.md](CATAPULT-CALIBRATION.md) is a session plan the
-team can work through on the field: find the travel limits, pick a release
-point by how repeatable it is rather than how far it throws, raise power to
-reach the target, and check it again on a tired battery. It needs the
-encoder cable fitted first.
+**New to this project? Start with
+[docs/GETTING-STARTED.md](docs/GETTING-STARTED.md).** It covers Mac and
+Chromebook setup, connecting to the robot, tethering, and the everyday
+edit-build-test loop.
 
-## When something goes wrong
+| Doc | For |
+|---|---|
+| [Getting started](docs/GETTING-STARTED.md) | Set up a laptop from scratch |
+| [GitHub for students](docs/GITHUB-FOR-STUDENTS.md) | Make an account, save your work |
+| [Hardware](docs/HARDWARE.md) | Cables, ports, what plugs in where |
+| [Logging](docs/LOGGING.md) | Find out what the robot actually did |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | When something is broken |
+| [Catapult calibration](docs/CATAPULT-CALIBRATION.md) | A field session plan for tuning it |
+| [Bring-up card](docs/BRINGUP-CARD.md) | The operator's card for the diagnostic tests |
+| [Driver Station options](docs/DRIVER-STATION-OPTIONS.md) | Op mode grouping, for the team to decide |
+| [Catapult review notes](docs/NOTES-catapult-review.md) | What is measured, what is still a guess |
+| [Session log, 12 Nov 2026](docs/SESSION-2026-11-12.md) | What the first bring-up session found |
 
-[TROUBLESHOOTING.md](TROUBLESHOOTING.md) records the failures this robot has
-actually produced, what each one looked like on the Driver Station, and what
-fixed it. Most of them share a trait worth knowing about: **the robot reports
-success while doing nothing**. A build can "succeed" and produce an empty jar;
-a rebuilt class can be ignored by a Robot Controller that already loaded the
-old one.
+### The one thing to know
 
-The short version, when the Driver Station does not show the Java op modes:
-build again, restart the Robot Controller, and check that they registered.
+**The robot reports success while doing nothing.** A build can "succeed"
+and produce a file with no code in it. A rebuilt program can be ignored
+because the old one is still loaded. After any deploy, check what
+actually loaded:
+
+```
+scripts/restart-robot-app.sh
+```
+
+It prints the programs the robot registered. If yours is not listed, it
+is not on the robot, whatever the build said.
 
 ## Working with the robot
 
