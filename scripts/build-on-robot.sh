@@ -18,6 +18,17 @@ if [ "$(adb -s "$HUB" get-state 2>/dev/null)" != "device" ]; then
   echo "Not connected. Run scripts/connect.sh first."; exit 1
 fi
 
+# Push teamcode/ first unless --no-push was given. Doing the push here rather
+# than in a separate command means the settle-wait below always runs after it;
+# chaining "adb push && build-on-robot.sh" outside the script let the build
+# read a half-written file and fail with "does not contain class".
+if [ "${1:-}" != "--no-push" ]; then
+  for f in teamcode/*.java; do
+    adb -s "$HUB" push "$f" /sdcard/FIRST/java/src/org/firstinspires/ftc/teamcode/ >/dev/null
+  done
+  echo "Pushed $(ls teamcode/*.java | wc -l | tr -d ' ') file(s)."
+fi
+
 adb -s "$HUB" forward "tcp:$PORT" "tcp:$PORT" >/dev/null
 
 # A build started too soon after an adb push can read the source directory
@@ -56,32 +67,18 @@ fi
 
 echo "Build successful ($WHEN)."
 
-# A successful build that produced fewer classes than there are sources means
-# the compiler did not see everything -- usually a file pushed a moment too
-# late. Say so rather than letting it look fine.
-CLASSES=$(adb -s "$HUB" shell 'ls /sdcard/FIRST/java/build/classes/org/firstinspires/ftc/teamcode/*.class' </dev/null | tr -d '\r' | grep -vc '\$' || true)
-if [ "${CLASSES:-0}" -lt "${BEFORE:-0}" ]; then
+# OnBot packages the compiled classes into a jar and removes the intermediate
+# .class files, so counting those is not a reliable check -- an earlier version
+# of this script called a good build a failure for that reason. Check that a
+# jar was produced after the build started instead.
+JAR=$(adb -s "$HUB" shell 'ls -1 /sdcard/FIRST/java/build/jars/' </dev/null | tr -d '\r' | tail -1)
+if [ -z "$JAR" ]; then
   echo
-  echo "$BEFORE source file(s) but only $CLASSES class(es) -- rebuilding once."
-  curl -s -o /dev/null --max-time 20 "$BASE/java/build/start"
-  curl -s --max-time 180 "$BASE/java/build/wait" >/dev/null || true
-  LOG=$(adb -s "$HUB" shell 'cat /sdcard/FIRST/java/status/buildLog.txt' </dev/null | tr -d '\r')
-  if [ -n "$LOG" ]; then
-    echo
-    echo "BUILD FAILED on retry:"
-    echo "$LOG"
-    exit 1
-  fi
-  CLASSES=$(adb -s "$HUB" shell 'ls /sdcard/FIRST/java/build/classes/org/firstinspires/ftc/teamcode/*.class' </dev/null | tr -d '\r' | grep -vc '\$' || true)
-  if [ "${CLASSES:-0}" -lt "${BEFORE:-0}" ]; then
-    echo "Still $CLASSES class(es) for $BEFORE source(s). Something else is wrong."
-    exit 1
-  fi
-  echo "Retry produced all $CLASSES class(es)."
+  echo "Build reported success but produced no jar. Something else is wrong."
+  exit 1
 fi
-echo
-echo "Classes on the hub:"
-adb -s "$HUB" shell 'ls /sdcard/FIRST/java/build/classes/org/firstinspires/ftc/teamcode/' </dev/null | tr -d '\r' | sed 's|^|  |'
+
+echo "Jar: $JAR"
 echo
 echo "If the Driver Station still shows an old error, restart the robot:"
 echo "the Robot Controller can hold on to a previously built class."

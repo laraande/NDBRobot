@@ -28,10 +28,29 @@ public class MecanumDrive {
     static final DcMotorSimple.Direction BR_DIR = DcMotorSimple.Direction.FORWARD;
 
     // How the Control Hub is mounted on the robot (field-centric only).
+    //
+    // Observed 2026-11-12: the Control Hub stands VERTICALLY on edge above the
+    // Expansion Hub, with its USB/HDMI port edge facing straight up and its
+    // logo face in a vertical plane. The front of the robot is the end away
+    // from the catapult.
+    //
+    // USB_DIR = UP is certain from the photos. LOGO_DIR is a hypothesis: with
+    // the ports up, the logo must point horizontally, so it is one of LEFT,
+    // RIGHT, FORWARD or BACKWARD. Test 4 of "0 BringUp" tells us which:
+    //
+    //   heading counts UP when turning left  -> this pair is correct
+    //   heading counts DOWN                  -> logo is 180 degrees out,
+    //                                           swap LEFT<->RIGHT (or
+    //                                           FORWARD<->BACKWARD)
+    //   heading barely moves at all          -> the yaw axis is wrong, so the
+    //                                           logo points along a different
+    //                                           axis than assumed
+    //
+    // Do not trust field-centric until test 4 has passed.
     static final RevHubOrientationOnRobot.LogoFacingDirection LOGO_DIR =
-            RevHubOrientationOnRobot.LogoFacingDirection.UP;
+            RevHubOrientationOnRobot.LogoFacingDirection.LEFT;
     static final RevHubOrientationOnRobot.UsbFacingDirection USB_DIR =
-            RevHubOrientationOnRobot.UsbFacingDirection.FORWARD;
+            RevHubOrientationOnRobot.UsbFacingDirection.UP;
 
     static final double STRAFE_CORRECTION = 1.1; // strafing is less efficient than driving
 
