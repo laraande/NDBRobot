@@ -1,6 +1,62 @@
-# Raw copies pulled off the Control Hub (large, includes build output and jars)
-hub-snapshots/
-.DS_Store
+# What NOT to save in git.
+#
+# Anything matching a line here is invisible to git. That is what you want
+# for things that are large, machine-specific, or can be regenerated -- and
+# especially for anything secret.
+#
+# To check whether a file is ignored:  git check-ignore -v <file>
 
-# Compile-check output
+# ----- Robot pulls -----
+# Raw copies of everything on the Control Hub. Tens of megabytes, and
+# regenerated any time with scripts/pull-from-robot.sh.
+hub-snapshots/
+
+# ----- Build output -----
+# Produced by scripts/check-code.sh and by Java tools. Nothing here is
+# source; it is all rebuilt from teamcode/.
 tools/out/
+*.class
+bin/
+out/
+build/
+
+# ----- Secrets -----
+# NEVER commit passwords, Wi-Fi keys or tokens. Git keeps history forever,
+# so deleting a password in a later commit does NOT remove it -- the only
+# real fix is changing the password. If it happens, say so straight away.
+.env
+*.key
+*.pem
+secrets.*
+**/credentials*
+
+# ----- Editor and operating system clutter -----
+# Specific to one person's machine, so it only causes conflicts.
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.iml
+*.swp
+*~
+.#*
+
+# ----- Scratch files -----
+# Convention: anything with "scratch" or "tmp" in the name is yours alone.
+# Use it for experiments you do not want to share.
+scratch/
+tmp/
+*.tmp
+*.bak
+*.orig
+
+# ----- Deliberately NOT ignored -----
+# These look like build output but are kept on purpose:
+#
+#   tools/lib/*.jar          the robot's own FTC libraries, so code can be
+#                            checked on a laptop with no internet
+#   history/onbot-builds/*.zip  the hub's backup of every build, which is how
+#                            an overwritten version was recovered
+#   logs/*.csv               diagnostic logs; a log showing a real failure is
+#                            worth keeping next to the fix
