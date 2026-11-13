@@ -8,7 +8,7 @@ Code for the FTC robot, written in OnBot Java and run on a REV Control Hub.
 |---|---|
 | `teamcode/` | The current season's code. This is exactly what goes on the robot. |
 | `config/` | The robot's hardware configuration (`2026-2027.xml`), for reference. Older ones are in `config/archive/`. |
-| `scripts/` | Connect to the robot, copy code off it, and load code onto it. |
+| `scripts/` | Connect to the robot, build code on it, pull logs back. See [scripts/README.md](scripts/README.md). |
 | `docs/` | Guides: setup, hardware, logging, troubleshooting, calibration. |
 | `logs/` | CSV logs pulled off the robot during testing. |
 | `tools/lib/` | The Control Hub's own copies of the FTC SDK, used to check code on the laptop. |

@@ -1,42 +1,43 @@
 #!/bin/bash
-# Replace the code on the Control Hub with the contents of teamcode/.
-#   1. Backs up what is on the hub now into hub-snapshots/
-#   2. Removes every .java file from the hub's teamcode folder
-#   3. Copies teamcode/*.java onto the hub
-# Then build from the OnBot Java page. Robot configurations are not touched.
-set -e
-cd "$(dirname "$0")/.."
-LOCAL=teamcode
-HUB=192.168.43.1:5555
-HUB_SRC=/sdcard/FIRST/java/src
-HUB_TEAMCODE=$HUB_SRC/org/firstinspires/ftc/teamcode
+# Replace the robot's code with the contents of teamcode/.
+#
+#   1. Saves a backup of what is on the robot now
+#   2. Removes every .java file from the robot's teamcode folder
+#   3. Copies teamcode/*.java across
+#
+# It asks before deleting anything. Robot configurations are not touched.
+#
+# For everyday work use scripts/build-on-robot.sh instead -- it copies the
+# files across without removing anything. This script is for making the
+# robot match this folder exactly.
+source "$(dirname "$0")/common.sh"
+require_hub
 
-if [ "$(adb -s "$HUB" get-state 2>/dev/null)" != "device" ]; then
-  echo "Not connected. Run scripts/connect.sh first."; exit 1
-fi
-
-echo "Files that will be on the robot after this:"
-ls "$LOCAL"/*.java | sed "s|$LOCAL/|  |"
-echo
-echo "Everything else in the robot's teamcode folder will be removed"
-echo "(after a backup copy is saved on this laptop)."
+say "After this the robot will have exactly these files:"
+ls teamcode/*.java | sed 's|teamcode/|  |'
+say ""
+say "Everything else in the robot's teamcode folder will be removed."
+say "A backup is saved to this laptop first."
+say ""
 read -r -p "Continue? [y/N] " answer
-[ "$answer" = "y" ] || [ "$answer" = "Y" ] || { echo "Cancelled."; exit 0; }
+case "$answer" in
+  y|Y) ;;
+  *) say "Cancelled. Nothing was changed."; exit 0 ;;
+esac
 
 BACKUP="hub-snapshots/before-deploy-$(date +%Y-%m-%d-%H%M%S)"
 mkdir -p "$BACKUP"
-adb -s "$HUB" pull -a "$HUB_SRC" "$BACKUP/src"
-echo "Backup saved to $BACKUP"
+hub_pull /sdcard/FIRST/java/src "$BACKUP/src"
+say "Backup saved to $BACKUP"
 
-adb -s "$HUB" shell "rm -f $HUB_TEAMCODE/*.java"
-adb -s "$HUB" shell "rmdir '$HUB_SRC/TeleOp26-27' 2>/dev/null; true"
-for f in "$LOCAL"/*.java; do
-  adb -s "$HUB" push "$f" "$HUB_TEAMCODE/"
+hub "rm -f $TEAMCODE/*.java" >/dev/null
+for f in teamcode/*.java; do
+  hub_push "$f" "$TEAMCODE/"
 done
 
-echo
-echo "On the robot now:"
-adb -s "$HUB" shell "ls -l $HUB_TEAMCODE"
-echo
-echo "Next: open http://192.168.43.1:8080, go to OnBot Java, refresh the page,"
-echo "and press Build Everything (the wrench button)."
+say ""
+say "On the robot now:"
+hub "ls $TEAMCODE" | sed 's/^/  /'
+say ""
+say "Next: scripts/build-on-robot.sh --no-push"
+say "Then: scripts/restart-robot-app.sh"

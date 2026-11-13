@@ -1,46 +1,33 @@
 #!/bin/bash
-# Restart the Robot Controller app on the Control Hub, from the laptop.
+# Restart the Robot Controller app on the robot.
 #
-# Why this is needed: OnBot Java compiles a new jar, but the Robot Controller
-# has already loaded the old classes into a running JVM. A rebuilt class does
-# not replace one that is already loaded, so after a build the robot can still
-# be running the previous code. This does what "Restart Robot" on the Driver
-# Station menu does.
+# Needed after every build. A new build writes new code, but the robot keeps
+# running whatever it already loaded until the app restarts. Skipping this is
+# the most common reason a change seems to do nothing.
 #
-# It does NOT reboot the hub. If a class changed what it inherits from (for
-# example a stray @TeleOp was removed from a helper class), even this may not
-# be enough and the hub needs a full power cycle.
-set -e
-cd "$(dirname "$0")/.."
-HUB=192.168.43.1:5555
-PKG=com.qualcomm.ftcrobotcontroller
+# This does not reboot the hub. If a program changed what it inherits from,
+# or an error will not clear, power cycle the robot instead.
+source "$(dirname "$0")/common.sh"
+require_hub
 
-if [ "$(adb -s "$HUB" get-state 2>/dev/null)" != "device" ]; then
-  echo "Not connected. Run scripts/connect.sh first."; exit 1
-fi
-
-echo "Stopping the Robot Controller..."
-adb -s "$HUB" shell "am force-stop $PKG"
+say "Restarting the Robot Controller..."
+hub "am force-stop $RC_APP" >/dev/null
 sleep 2
+adb -s "$HUB" shell "monkey -p $RC_APP -c android.intent.category.LAUNCHER 1" >/dev/null 2>&1
 
-echo "Starting it again..."
-adb -s "$HUB" shell "monkey -p $PKG -c android.intent.category.LAUNCHER 1" >/dev/null 2>&1
-
-echo "Waiting for op modes to register..."
-for i in $(seq 1 30); do
+say "Waiting for the programs to load..."
+for _ in $(seq 1 30); do
   sleep 2
-  REG=$(adb -s "$HUB" logcat -d -t 300 2>/dev/null | grep -c "OpmodeRegistration: registered" || true)
-  if [ "${REG:-0}" -gt 0 ]; then
-    echo
-    echo "Registered op modes:"
-    adb -s "$HUB" logcat -d -t 300 2>/dev/null \
-      | grep "OpmodeRegistration: registered" \
-      | sed 's/.*registered //' | sed 's/^/  /' | tail -10
-    echo
-    echo "The Driver Station may need a moment to reconnect."
+  FOUND=$(adb -s "$HUB" logcat -d -t 400 2>/dev/null \
+          | grep "OpmodeRegistration: registered" || true)
+  if [ -n "$FOUND" ]; then
+    say ""
+    say "Programs the robot loaded:"
+    echo "$FOUND" | sed 's/.*registered //' | sed 's/^/  /'
+    say ""
+    say "If yours is not listed, it is not on the robot."
     exit 0
   fi
 done
 
-echo "Timed out waiting for registration. Check the Driver Station."
-exit 1
+die "Timed out. Check the Driver Hub -- it may still be reconnecting."

@@ -1,12 +1,18 @@
 #!/bin/bash
-# Connect adb to the Control Hub. The laptop must be on the robot's Wi-Fi.
-HUB=192.168.43.1:5555
-adb disconnect >/dev/null 2>&1
+# Connect to the robot. Run this first, every session.
+# The laptop must be on the robot's Wi-Fi.
+source "$(dirname "$0")/common.sh"
+
+adb disconnect >/dev/null 2>&1 || true
 adb connect "$HUB"
 sleep 1
+
 if [ "$(adb -s "$HUB" get-state 2>/dev/null)" != "device" ]; then
-  echo "Not connected. Join the robot's Wi-Fi, then run this again."
-  echo "If it still fails: adb kill-server, then run this again."
-  exit 1
+  die "Could not connect.
+
+  1. Is the laptop on the robot's Wi-Fi? (7593-A-RC)
+  2. Is the Control Hub on?
+  3. Still stuck: run 'adb kill-server' and try again."
 fi
-echo "Connected to the Control Hub."
+
+say "Connected to the Control Hub."

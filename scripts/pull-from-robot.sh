@@ -1,16 +1,18 @@
 #!/bin/bash
-# Copy the Control Hub's code and configurations into hub-snapshots/<date-time>/.
-# Read-only: nothing on the robot changes.
-set -e
-cd "$(dirname "$0")/.."
-HUB=192.168.43.1:5555
-if [ "$(adb -s "$HUB" get-state 2>/dev/null)" != "device" ]; then
-  echo "Not connected. Run scripts/connect.sh first."; exit 1
-fi
+# Copy the robot's code and configurations into hub-snapshots/.
+# Read-only: nothing on the robot is changed.
+source "$(dirname "$0")/common.sh"
+require_hub
+
 DEST="hub-snapshots/$(date +%Y-%m-%d-%H%M%S)"
 mkdir -p "$DEST/config"
-adb -s "$HUB" pull -a /sdcard/FIRST/java/src "$DEST/src"
-adb -s "$HUB" shell 'ls /sdcard/FIRST/' </dev/null | tr -d '\r' | grep '\.xml$' | while IFS= read -r f; do
-  adb -s "$HUB" pull -a "/sdcard/FIRST/$f" "$DEST/config/" </dev/null || true
+
+say "Copying the robot's code..."
+hub_pull /sdcard/FIRST/java/src "$DEST/src"
+
+say "Copying the robot's configurations..."
+hub 'ls /sdcard/FIRST/' | grep '\.xml$' | while read -r f; do
+  hub_pull "/sdcard/FIRST/$f" "$DEST/config/" || true
 done
-echo "Saved to $DEST"
+
+say "Saved to $DEST"

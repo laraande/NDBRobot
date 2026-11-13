@@ -1,106 +1,84 @@
 #!/bin/bash
-# Build the code that is on the Control Hub, from the laptop.
+# Push teamcode/ to the robot and build it.
 #
-# Does what "Build Everything" on the OnBot Java page does, and prints the
-# result. Use it after scripts/deploy-to-robot.sh so a compile error shows up
-# here instead of only on the robot's web page.
+# Does what "Build Everything" on the OnBot Java web page does, but from the
+# laptop, and checks the result properly. Run scripts/restart-robot-app.sh
+# afterwards so the robot actually loads what was built.
 #
-# The hub's web server is reached through the adb connection rather than
-# directly, because a laptop that is tethered to a phone while on the robot's
-# Wi-Fi has two default routes and HTTP to 192.168.43.1 fails with "no route
-# to host". adb's own connection is unaffected, so we tunnel through it.
-set -e
-cd "$(dirname "$0")/.."
-HUB=192.168.43.1:5555
-PORT=8080
+#   scripts/build-on-robot.sh             push, then build
+#   scripts/build-on-robot.sh --no-push   build what is already there
+source "$(dirname "$0")/common.sh"
+require_hub
 
-if [ "$(adb -s "$HUB" get-state 2>/dev/null)" != "device" ]; then
-  echo "Not connected. Run scripts/connect.sh first."; exit 1
-fi
-
-# Push teamcode/ first unless --no-push was given. Doing the push here rather
-# than in a separate command means the settle-wait below always runs after it;
-# chaining "adb push && build-on-robot.sh" outside the script let the build
-# read a half-written file and fail with "does not contain class".
+# --- 1. Copy the code over ---------------------------------------------
+# The push happens inside this script on purpose. The build must not start
+# until the files have fully landed, and doing both here is the only way to
+# guarantee the order.
 if [ "${1:-}" != "--no-push" ]; then
   for f in teamcode/*.java; do
-    adb -s "$HUB" push "$f" /sdcard/FIRST/java/src/org/firstinspires/ftc/teamcode/ >/dev/null
+    hub_push "$f" "$TEAMCODE/"
   done
-  echo "Pushed $(ls teamcode/*.java | wc -l | tr -d ' ') file(s)."
+  say "Pushed $(ls teamcode/*.java | wc -l | tr -d ' ') file(s)."
 fi
 
-adb -s "$HUB" forward "tcp:$PORT" "tcp:$PORT" >/dev/null
+# --- 2. Wait for the files to settle -----------------------------------
+# A build started too soon reads a half-written file. It then either fails
+# with "does not contain class" or, worse, succeeds and compiles nothing.
+# Waiting for the robot's view of the folder to stop changing avoids both.
+wait_for_files_to_settle() {
+  local previous="" current=""
+  for _ in $(seq 1 10); do
+    current=$(hub "ls -l $TEAMCODE/")
+    [ "$current" = "$previous" ] && return 0
+    previous="$current"
+    sleep 1
+  done
+}
+wait_for_files_to_settle
 
-# A build started too soon after an adb push can read the source directory
-# before the new file lands, then report success having compiled without it.
-# One second was not enough in practice, so wait for the hub's own view of the
-# sources to stop changing before starting.
-BEFORE=$(adb -s "$HUB" shell 'ls /sdcard/FIRST/java/src/org/firstinspires/ftc/teamcode/*.java' </dev/null | tr -d '\r' | wc -l | tr -d ' ')
-settle_prev=""
-for _ in 1 2 3 4 5 6 7 8 9 10; do
-  settle_now=$(adb -s "$HUB" shell 'ls -l /sdcard/FIRST/java/src/org/firstinspires/ftc/teamcode/' </dev/null | tr -d '\r' | md5 2>/dev/null || true)
-  if [ -n "$settle_prev" ] && [ "$settle_now" = "$settle_prev" ]; then break; fi
-  settle_prev="$settle_now"
-  sleep 1
-done
+# --- 3. Start the build ------------------------------------------------
+hub_web
+if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$WEB/java/build/start")" != "200" ]; then
+  die "Could not start the build.
 
-BASE="http://127.0.0.1:$PORT"
-code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$BASE/java/build/start")
-if [ "$code" != "200" ]; then
-  echo "Could not start the build (HTTP $code)."
-  echo "Is the Robot Controller app running on the hub?"
+Is the Robot Controller running on the hub? Try scripts/restart-robot-app.sh."
+fi
+
+say "Building..."
+curl -s --max-time 180 "$WEB/java/build/wait" >/dev/null || true
+
+# --- 4. Did it compile? ------------------------------------------------
+ERRORS=$(hub "cat $JAVA_STATUS/buildLog.txt")
+if [ -n "$ERRORS" ]; then
+  warn "BUILD FAILED:"
+  echo "$ERRORS"
   exit 1
 fi
 
-echo "Building..."
-curl -s --max-time 180 "$BASE/java/build/wait" >/dev/null || true
+say "Build successful ($(hub "head -1 $JAVA_STATUS/buildSuccessful.txt"))."
 
-LOG=$(adb -s "$HUB" shell 'cat /sdcard/FIRST/java/status/buildLog.txt' </dev/null | tr -d '\r')
-WHEN=$(adb -s "$HUB" shell 'head -1 /sdcard/FIRST/java/status/buildSuccessful.txt' </dev/null | tr -d '\r')
-
-if [ -n "$LOG" ]; then
-  echo
-  echo "BUILD FAILED:"
-  echo "$LOG"
-  exit 1
-fi
-
-echo "Build successful ($WHEN)."
-
-# Verify the jar actually contains something.
+# --- 5. Did it actually produce anything? ------------------------------
+# The nastiest failure on this hub: a build reports success, writes an empty
+# build log, and produces a jar with no code in it. The robot then shows no
+# Java programs at all, as if nothing was ever installed.
 #
-# An empty build is the nastiest failure mode on this hub: OnBot can report
-# "build successful" with an empty buildLog and still write a 166-byte jar
-# holding no classes. The Robot Controller then loads it without complaint and
-# the Driver Station shows only the Blocks op modes, as if the Java had never
-# been installed. That happened at 22:59 on 2026-11-12 after a build read a
-# half-written source file, and it cost a reboot and a lot of confusion.
-#
-# Neither of the two obvious checks works: counting .class files fails because
-# OnBot removes them after packaging, and checking that a jar exists fails
-# because the empty jar exists. Size is what distinguishes them -- a real jar
-# with a few op modes is tens of kilobytes.
-JAR_DIR=$(adb -s "$HUB" shell 'cat /sdcard/FIRST/java/status/currentOnBotJavaDir.txt' </dev/null | tr -d '\r')
-JAR_SIZE=$(adb -s "$HUB" shell "wc -c < '$JAR_DIR/OnBotJava.jar' 2>/dev/null" </dev/null | tr -d '\r ' )
+# Checking that a jar exists is not enough, because the empty one exists.
+# Size is what tells them apart: a real jar is tens of kilobytes.
+JAR="$(hub "cat $JAVA_STATUS/currentOnBotJavaDir.txt")/OnBotJava.jar"
+SIZE=$(hub "wc -c < '$JAR' 2>/dev/null" | tr -d ' ')
 
-if [ -z "$JAR_SIZE" ]; then
-  echo
-  echo "Build reported success but no jar was produced. Something else is wrong."
-  exit 1
+[ -z "$SIZE" ] && die "Build reported success but produced no jar at all."
+
+if [ "$SIZE" -lt 2000 ]; then
+  die "BUILD PRODUCED AN EMPTY JAR ($SIZE bytes).
+
+It said it succeeded but compiled nothing. The robot will show no Java
+programs, as if nothing was installed.
+
+This usually means a file was still being written when the build read it.
+Just run this script again."
 fi
 
-if [ "$JAR_SIZE" -lt 2000 ]; then
-  echo
-  echo "BUILD PRODUCED AN EMPTY JAR ($JAR_SIZE bytes)."
-  echo
-  echo "The build said it succeeded, but compiled nothing. The robot will show"
-  echo "only the Blocks op modes, with no Java ones, as if nothing was installed."
-  echo "This usually means the build read a source file while it was still being"
-  echo "written. Run this script again."
-  exit 1
-fi
-
-echo "Jar: $JAR_SIZE bytes, looks good."
-echo
-echo "If the Driver Station still shows an old error, restart the robot:"
-echo "the Robot Controller can hold on to a previously built class."
+say "Jar looks good ($SIZE bytes)."
+say ""
+say "Now run scripts/restart-robot-app.sh so the robot loads it."
