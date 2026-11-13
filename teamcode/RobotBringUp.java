@@ -93,6 +93,7 @@ public class RobotBringUp extends LinearOpMode {
     private final ElapsedTime fireTimer = new ElapsedTime();
 
     private int marks = 0;
+    private String lastButtons = "";
 
     @Override
     public void runOpMode() {
@@ -155,9 +156,24 @@ public class RobotBringUp extends LinearOpMode {
         while (opModeIsActive()) {
 
             // ----- Test selection -----
-            boolean lb = gamepad1.left_bumper, rb = gamepad1.right_bumper;
-            if (rb && !rbPrev && test < LAST_TEST) { allStop(); test++; }
-            if (lb && !lbPrev && test > 1)         { allStop(); test--; }
+            // Bumpers are the normal way. Start and the dpad left/right are
+            // alternates, because a worn bumper should not be able to strand
+            // the whole session in test 1 the way it did on 2026-11-12.
+            boolean lb = gamepad1.left_bumper  || gamepad1.dpad_left;
+            boolean rb = gamepad1.right_bumper || gamepad1.dpad_right || gamepad1.start;
+
+            // Log any press, even one that changes nothing, so the CSV shows
+            // whether a control is reaching the robot at all.
+            logButtons();
+
+            if (rb && !rbPrev && test < LAST_TEST) {
+                allStop(); test++;
+                writeRow("TEST_CHANGE", "advanced to test " + test);
+            }
+            if (lb && !lbPrev && test > 1) {
+                allStop(); test--;
+                writeRow("TEST_CHANGE", "went back to test " + test);
+            }
             rbPrev = rb; lbPrev = lb;
 
             boolean back = gamepad1.back;
@@ -310,6 +326,31 @@ public class RobotBringUp extends LinearOpMode {
     // ===================== Shared =====================
 
     /**
+     * Write a row whenever a gamepad 1 button changes state. Without this a
+     * silent run is ambiguous: a button that is pressed but ignored looks
+     * exactly like a button that was never pressed.
+     */
+    private void logButtons() {
+        StringBuilder now = new StringBuilder();
+        if (gamepad1.a) now.append("A");
+        if (gamepad1.b) now.append("B");
+        if (gamepad1.x) now.append("X");
+        if (gamepad1.y) now.append("Y");
+        if (gamepad1.left_bumper) now.append(" LB");
+        if (gamepad1.right_bumper) now.append(" RB");
+        if (gamepad1.dpad_left) now.append(" DL");
+        if (gamepad1.dpad_right) now.append(" DR");
+        if (gamepad1.start) now.append(" START");
+        if (gamepad1.back) now.append(" BACK");
+        String s = now.toString();
+        if (!s.equals(lastButtons)) {
+            writeRow("BUTTONS", "gamepad1: " + (s.isEmpty() ? "(none)" : s));
+            lastButtons = s;
+        }
+    }
+
+
+    /**
      * Build MecanumDrive on first use. Constructing it applies MecanumDrive's
      * own direction constants, which test 1 deliberately bypasses -- so it is
      * built only once a test actually needs it. Field-centric needs the IMU,
@@ -331,7 +372,9 @@ public class RobotBringUp extends LinearOpMode {
 
     private void showTelemetry() {
         telemetry.addData("TEST", "%d of %d   %s", test, LAST_TEST, testName());
-        telemetry.addLine("bumpers = change test | BACK = mark log");
+        telemetry.addLine("NEXT TEST: right bumper, or dpad RIGHT, or START");
+        telemetry.addLine("PREV TEST: left bumper, or dpad LEFT");
+        telemetry.addLine("BACK = mark the log");
         telemetry.addLine("");
 
         switch (test) {

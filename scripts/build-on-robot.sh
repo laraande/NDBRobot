@@ -20,6 +20,14 @@ fi
 
 adb -s "$HUB" forward "tcp:$PORT" "tcp:$PORT" >/dev/null
 
+# Let any just-pushed file settle before the build reads the source directory.
+# A build started in the same breath as an adb push can miss the new file and
+# still report success, leaving the old class (or no class) on the hub.
+sync_wait=1
+sleep "$sync_wait"
+
+BEFORE=$(adb -s "$HUB" shell 'ls /sdcard/FIRST/java/src/org/firstinspires/ftc/teamcode/*.java' </dev/null | tr -d '\r' | wc -l | tr -d ' ')
+
 BASE="http://127.0.0.1:$PORT"
 code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$BASE/java/build/start")
 if [ "$code" != "200" ]; then
@@ -42,6 +50,16 @@ if [ -n "$LOG" ]; then
 fi
 
 echo "Build successful ($WHEN)."
+
+# A successful build that produced fewer classes than there are sources means
+# the compiler did not see everything -- usually a file pushed a moment too
+# late. Say so rather than letting it look fine.
+CLASSES=$(adb -s "$HUB" shell 'ls /sdcard/FIRST/java/build/classes/org/firstinspires/ftc/teamcode/*.class' </dev/null | tr -d '\r' | grep -vc '\$' || true)
+if [ "${CLASSES:-0}" -lt "${BEFORE:-0}" ]; then
+  echo
+  echo "WARNING: $BEFORE source file(s) but only $CLASSES class(es)."
+  echo "Run this script again -- a file may have been pushed mid-build."
+fi
 echo
 echo "Classes on the hub:"
 adb -s "$HUB" shell 'ls /sdcard/FIRST/java/build/classes/org/firstinspires/ftc/teamcode/' </dev/null | tr -d '\r' | sed 's|^|  |'
