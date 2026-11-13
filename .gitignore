@@ -1,0 +1,3 @@
+# Raw copies pulled off the Control Hub (large, includes build output and jars)
+hub-snapshots/
+.DS_Store
