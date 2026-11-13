@@ -58,6 +58,18 @@ Hub's own SDK jars, pulled off the robot on 2026-11-12. If the SDK on the robot
 is ever updated, copy the new jars from
 `hub-snapshots/<date>/FIRST/java/lib/` over the ones in `tools/lib/`.
 
+## When something goes wrong
+
+[TROUBLESHOOTING.md](TROUBLESHOOTING.md) records the failures this robot has
+actually produced, what each one looked like on the Driver Station, and what
+fixed it. Most of them share a trait worth knowing about: **the robot reports
+success while doing nothing**. A build can "succeed" and produce an empty jar;
+a rebuilt class can be ignored by a Robot Controller that already loaded the
+old one.
+
+The short version, when the Driver Station does not show the Java op modes:
+build again, restart the Robot Controller, and check that they registered.
+
 ## Working with the robot
 
 One-time setup on a Mac: `brew install android-platform-tools`

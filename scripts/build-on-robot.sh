@@ -67,18 +67,40 @@ fi
 
 echo "Build successful ($WHEN)."
 
-# OnBot packages the compiled classes into a jar and removes the intermediate
-# .class files, so counting those is not a reliable check -- an earlier version
-# of this script called a good build a failure for that reason. Check that a
-# jar was produced after the build started instead.
-JAR=$(adb -s "$HUB" shell 'ls -1 /sdcard/FIRST/java/build/jars/' </dev/null | tr -d '\r' | tail -1)
-if [ -z "$JAR" ]; then
+# Verify the jar actually contains something.
+#
+# An empty build is the nastiest failure mode on this hub: OnBot can report
+# "build successful" with an empty buildLog and still write a 166-byte jar
+# holding no classes. The Robot Controller then loads it without complaint and
+# the Driver Station shows only the Blocks op modes, as if the Java had never
+# been installed. That happened at 22:59 on 2026-11-12 after a build read a
+# half-written source file, and it cost a reboot and a lot of confusion.
+#
+# Neither of the two obvious checks works: counting .class files fails because
+# OnBot removes them after packaging, and checking that a jar exists fails
+# because the empty jar exists. Size is what distinguishes them -- a real jar
+# with a few op modes is tens of kilobytes.
+JAR_DIR=$(adb -s "$HUB" shell 'cat /sdcard/FIRST/java/status/currentOnBotJavaDir.txt' </dev/null | tr -d '\r')
+JAR_SIZE=$(adb -s "$HUB" shell "wc -c < '$JAR_DIR/OnBotJava.jar' 2>/dev/null" </dev/null | tr -d '\r ' )
+
+if [ -z "$JAR_SIZE" ]; then
   echo
-  echo "Build reported success but produced no jar. Something else is wrong."
+  echo "Build reported success but no jar was produced. Something else is wrong."
   exit 1
 fi
 
-echo "Jar: $JAR"
+if [ "$JAR_SIZE" -lt 2000 ]; then
+  echo
+  echo "BUILD PRODUCED AN EMPTY JAR ($JAR_SIZE bytes)."
+  echo
+  echo "The build said it succeeded, but compiled nothing. The robot will show"
+  echo "only the Blocks op modes, with no Java ones, as if nothing was installed."
+  echo "This usually means the build read a source file while it was still being"
+  echo "written. Run this script again."
+  exit 1
+fi
+
+echo "Jar: $JAR_SIZE bytes, looks good."
 echo
 echo "If the Driver Station still shows an old error, restart the robot:"
 echo "the Robot Controller can hold on to a previously built class."
