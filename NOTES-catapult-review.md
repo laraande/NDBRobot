@@ -195,6 +195,27 @@ with the old values would have made the robot turn instead of going straight.
 
 Now applied and built onto the hub (build at 22:07, clean log).
 
+### Drive feel (test 2) — CONFIRMED 2026-11-12 22:22
+
+`logs/bringup-2026-11-12-222217.csv`. 51 s in test 2, after the corrected
+direction constants were built onto the hub.
+
+The operator reported the wheels looked correct, and the log agrees. All
+four mecanum patterns appear with the right signs:
+
+| Motion | Wheel powers | Samples |
+|---|---|---|
+| forward | all four positive | 70 |
+| backward | all four negative | 59 |
+| strafe right | fl+ fr- bl- br+ | 59 |
+| strafe left | fl- fr+ bl+ br- | 47 |
+
+So the direction fix is verified in both the data and on the floor.
+
+Not covered by this run: rotation (no turn samples, the right stick was
+not used) and full speed (peak power was 0.21, the right trigger was not
+held).
+
 ### Still unmeasured
 
 The run stayed in test 1, so these are still unknown and still guesses:
