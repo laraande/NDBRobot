@@ -58,6 +58,14 @@ Hub's own SDK jars, pulled off the robot on 2026-11-12. If the SDK on the robot
 is ever updated, copy the new jars from
 `hub-snapshots/<date>/FIRST/java/lib/` over the ones in `tools/lib/`.
 
+## Calibrating the catapult
+
+[CATAPULT-CALIBRATION.md](CATAPULT-CALIBRATION.md) is a session plan the
+team can work through on the field: find the travel limits, pick a release
+point by how repeatable it is rather than how far it throws, raise power to
+reach the target, and check it again on a tired battery. It needs the
+encoder cable fitted first.
+
 ## When something goes wrong
 
 [TROUBLESHOOTING.md](TROUBLESHOOTING.md) records the failures this robot has
