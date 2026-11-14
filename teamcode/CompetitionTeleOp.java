@@ -100,7 +100,7 @@ public class CompetitionTeleOp extends LinearOpMode {
      * FIRE_MS before anything cut it. Start gentle, read the peak amps off
      * the screen, then raise this with dpad right until the throw is right.
      */
-    static final double FIRE_POWER = 0.70;
+    static final double FIRE_POWER = 1.00;
     /**
      * Longest a throw may run. The current cutoff normally ends it sooner.
      *
@@ -108,7 +108,7 @@ public class CompetitionTeleOp extends LinearOpMode {
      * a time, once the first shots show how long the arm actually takes to
      * reach the stopper.
      */
-    static final double FIRE_MS = 200;
+    static final double FIRE_MS = 250;
     /** Quiet pause after the throw, before the arm starts coming back. */
     static final double SETTLE_MS = 200;
     /** Gentle power for the return. Negative = back toward home. */
@@ -144,10 +144,20 @@ public class CompetitionTeleOp extends LinearOpMode {
      * shots read "timed out" while the motor kept driving into the bracket
      * for the rest of FIRE_MS. That is what this fixes.
      *
+     * REVISED 2026-11-13 after testing at full power: 5.3 was measured at
+     * 0.70 power and turned out to trip DURING the throw at 1.00, cutting
+     * shots short. A full-power shot with the cutoff disabled went clearly
+     * further than the same shot with it on. Raised to 8.0, below the ~9.2 A
+     * stall of this motor but above anything a clean full-power throw draws.
+     *
+     * The lesson: a current threshold measured at one power does not transfer
+     * to another, because free-running current scales with power. If
+     * FIRE_POWER changes, re-measure this.
+     *
      * Re-measure if the power, the spring or the stopper position changes:
      * the threshold is specific to all three.
      */
-    static final double FIRE_STALL_AMPS = 5.3;
+    static final double FIRE_STALL_AMPS = 8.0;
     /**
      * Current that means "the arm is back home against the rest stop".
      *
@@ -199,6 +209,14 @@ public class CompetitionTeleOp extends LinearOpMode {
     // Tuning step sizes for the live controls.
     static final double POWER_STEP = 0.05;
     static final double TIME_STEP_MS = 25;
+    /**
+     * Gamepad 2 X toggles the fire cutoff off entirely, for experiments.
+     * With it OFF the shot runs the full FIRE_MS no matter what the current
+     * does, so the motor WILL drive into the stopper for any time left after
+     * the arm arrives. Use it to find out what the mechanism can do, not for
+     * a match. The screen shows CUTOFF OFF in capitals while it is disabled.
+     */
+    static final double CUTOFF_DISABLED_AMPS = 99.0;
     static final double MIN_FIRE_POWER = 0.10;
     static final double MIN_FIRE_MS = 25;
 
@@ -219,6 +237,7 @@ public class CompetitionTeleOp extends LinearOpMode {
     private double firePower = FIRE_POWER;
     private double fireMs = FIRE_MS;
     private double peakAmps = 0;
+    private boolean cutoffOn = true;
     private String lastShot = "none yet";
 
     @Override
@@ -249,7 +268,7 @@ public class CompetitionTeleOp extends LinearOpMode {
 
         // Previous-frame button states, for rising-edge detection.
         boolean pA = false;
-        boolean pDpadL = false, pDpadR = false, pLB = false, pRB = false;
+        boolean pDpadL = false, pDpadR = false, pLB = false, pRB = false, pX = false;
         boolean pBack = false, pStart = false;
 
         // Everything from here to the finally block must stay non-blocking.
@@ -292,6 +311,8 @@ public class CompetitionTeleOp extends LinearOpMode {
                 if (gamepad2.left_bumper && !pLB) {
                     fireMs = Math.max(MIN_FIRE_MS, fireMs - TIME_STEP_MS);
                 }
+                if (gamepad2.x && !pX) cutoffOn = !cutoffOn;
+                pX = gamepad2.x;
                 pDpadR = gamepad2.dpad_right;
                 pDpadL = gamepad2.dpad_left;
                 pRB = gamepad2.right_bumper;
@@ -340,7 +361,7 @@ public class CompetitionTeleOp extends LinearOpMode {
                         if (settled) {
                             peakAmps = Math.max(peakAmps, amps);
                         }
-                        boolean hitStop = settled && amps > FIRE_STALL_AMPS;
+                        boolean hitStop = settled && amps > fireCutoff();
                         if (hitStop || timer.milliseconds() >= fireMs) {
                             lastShot = String.format("%s at %.0f ms, peak %.1f A",
                                     hitStop ? "hit stop" : "timed out",
@@ -412,17 +433,23 @@ public class CompetitionTeleOp extends LinearOpMode {
         }
     }
 
+    /** The cutoff actually in force, honouring the gamepad 2 X override. */
+    private double fireCutoff() {
+        return cutoffOn ? FIRE_STALL_AMPS : CUTOFF_DISABLED_AMPS;
+    }
+
     private void showTelemetry(MecanumDrive drive, double amps, double speed) {
         double cutoff;
         switch (state) {
             case RETURNING: cutoff = RETURN_STALL_AMPS; break;
             case JOG:       cutoff = JOG_STALL_AMPS;    break;
-            default:        cutoff = FIRE_STALL_AMPS;   break;
+            default:        cutoff = fireCutoff();      break;
         }
         telemetry.addData("Catapult", state);
         telemetry.addData("Fire power", "%.2f   (dpad L/R)", firePower);
         telemetry.addData("Fire time", "%.0f ms (bumpers)", fireMs);
         telemetry.addData("Last shot", lastShot);
+        telemetry.addData("Cutoff", cutoffOn ? "on (X toggles)" : "*** CUTOFF OFF ***");
         telemetry.addData("Motor A", "%.1f  (cutoff %.1f)  peak %.1f", amps, cutoff, peakAmps);
         telemetry.addData("Battery", "%.2f V", battery.getVoltage());
         telemetry.addData("Drive", "%s (%.2f), %s",
