@@ -142,6 +142,23 @@ public class CompetitionTeleOp extends LinearOpMode {
     /** Ignore current readings for this long after a move starts (inrush spike). */
     static final double IGNORE_MS = 80;
 
+    /**
+     * Longest a single manual jog may run, in milliseconds.
+     *
+     * There is NO physical hard stop at the fire end of this robot (confirmed
+     * 2026-11-13). Without one, a held dpad has nothing to stall against, so
+     * the current cutoff may never trip and the arm can be driven past the end
+     * of its useful travel into the linkage.
+     *
+     * This bounds every jog by time as well as current. Release and press
+     * again to continue moving; that is deliberate, so the arm cannot be
+     * walked to the end of its range by leaning on the dpad.
+     *
+     * Raise it once a fire-end hard stop is fitted, or lower it if 600 ms
+     * still moves the arm too far in one press.
+     */
+    static final double JOG_MAX_MS = 600;
+
     /** Battery voltage the powers above are written for. */
     static final double NOMINAL_VOLTS = 12.5;
     /** Below this the voltage reading is treated as bogus and not used to scale. */
@@ -348,9 +365,15 @@ public class CompetitionTeleOp extends LinearOpMode {
         if (settled) {
             peakAmps = Math.max(peakAmps, amps);
         }
-        if (settled && amps > JOG_STALL_AMPS) {
-            // Against a stop. Cut power but stay in JOG so it does not instantly
+        boolean overCurrent = settled && amps > JOG_STALL_AMPS;
+        boolean tooLong = timer.milliseconds() >= JOG_MAX_MS;
+        if (overCurrent || tooLong) {
+            // Either the arm is against something, or this press has run long
+            // enough. Cut power but stay in JOG so it does not instantly
             // retry; the operator must release the dpad to try again.
+            //
+            // The time limit matters because this robot has no fire-end hard
+            // stop, so a held dpad would otherwise have nothing to stop it.
             catapult.setPower(0);
         } else {
             setCat(power);

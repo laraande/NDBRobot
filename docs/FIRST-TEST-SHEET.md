@@ -30,16 +30,29 @@ Done on 2026-11-13, no need to repeat unless something changes:
 
 ---
 
-## A. Catapult direction and the jog cutout
+## A. Catapult direction and the jog limit
+
+> **THERE IS NO FIRE-END HARD STOP ON THIS ROBOT** (confirmed 2026-11-13).
+>
+> Nothing physically prevents the arm over-travelling at the throw end. So:
+>
+> - **Never hold dpad up to the end of the arm's travel.** Short taps only.
+> - Every jog is now limited to **600 ms** per press (`JOG_MAX_MS`), because
+>   the current cutoff has nothing to stall against at that end.
+> - The current cutoff still protects the **home** end, which does have a
+>   stop -- that is the 4.2 A resting reading.
+> - `FIRE_STALL_AMPS` cannot be measured until a stop is fitted. Until then
+>   every shot will report `timed out`, and that is correct.
 
 The arm sits at the home stop under spring tension, so dpad down only
 presses it harder into the stop. Direction is confirmed by the fact that
 down did **not** throw it.
 
-### A1. Jog up to the fire stop
+### A1. Jog up, in short taps
 
-**Hold gamepad 2 dpad UP** until the arm reaches the fire-end hard stop, then
-keep holding for about one more second.
+**Tap gamepad 2 dpad UP** for well under a second at a time, watching where
+the arm goes. Stop as soon as you can see which way it travels. **Do not run
+it to the end of its range.**
 
 Watch the `Motor A` line: `current (cutoff 6.5) peak N.N`
 
@@ -47,13 +60,14 @@ Watch the `Motor A` line: `current (cutoff 6.5) peak N.N`
 |---|---|---|
 | Arm direction | moves toward the **throw** end | |
 | Current while travelling | climbs above 0 | ______ A |
-| At the hard stop | motor goes **quiet**, stops pulling | yes / no |
-| `peak` after release | the highest value seen | ______ A |
+| Jog cuts out by itself after ~600 ms | motor goes quiet while still held | yes / no |
+| `peak` | the highest value seen | ______ A |
 
-**Stop immediately and report if:** the motor keeps grinding and never goes
-quiet, or it cuts out before the arm moves at all.
+**Stop immediately and report if:** the arm keeps moving past where it
+should, or the motor never goes quiet after 600 ms of holding.
 
-**Write the peak down.** It sets `FIRE_STALL_AMPS`.
+The 600 ms cutout is the protection standing in for the missing hard stop.
+**Verifying it works is the point of this test**, more than the peak number.
 
 ### A2. Jog back down
 
@@ -228,7 +242,8 @@ R10 / G403 / G404: no powered motion once the op mode ends.
 | `RETURN_MS` | 1500 | **untested** |
 | `JOG_POWER` | 0.55 | measured 11-12 |
 | `REST_HOLD` | 0.0 | off |
-| `FIRE_STALL_AMPS` | 7.0 | **guess — A1 sets this** |
+| `FIRE_STALL_AMPS` | 7.0 | **cannot be measured — no fire-end stop. Shots will report `timed out`** |
+| `JOG_MAX_MS` | 600 | stands in for the missing hard stop |
 | `RETURN_STALL_AMPS` | 5.5 | measured above the 4.2 A resting draw |
 | `JOG_STALL_AMPS` | 6.5 | same |
 | `IGNORE_MS` | 80 | untested |
