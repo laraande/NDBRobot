@@ -104,11 +104,16 @@ public class CompetitionTeleOp extends LinearOpMode {
     /**
      * Longest a throw may run. The current cutoff normally ends it sooner.
      *
-     * Also deliberately short to start. Raise with the right bumper, 25 ms at
-     * a time, once the first shots show how long the arm actually takes to
-     * reach the stopper.
+     * MEASURED 2026-11-13, after the stopper and launcher were adjusted: a
+     * full-power shot reaches the stopper at 171 ms ("hit stop at 171 ms,
+     * peak 8.1 A"). 200 ms leaves a small margin over that without a long
+     * dwell driving into the stopper if a tired battery slows the arm.
+     *
+     * The current cutoff is what normally ends the shot; this is the backstop.
+     * If shots start reading "timed out" instead of "hit stop", the arm is no
+     * longer reaching the stopper -- check the battery before changing this.
      */
-    static final double FIRE_MS = 250;
+    static final double FIRE_MS = 200;
     /** Quiet pause after the throw, before the arm starts coming back. */
     static final double SETTLE_MS = 200;
     /** Gentle power for the return. Negative = back toward home. */
