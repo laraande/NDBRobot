@@ -254,3 +254,67 @@ conclusion is trustworthy.
 
 Total cost: zero parts, about 45 minutes, and it either confirms the
 analysis or tells you I am wrong in a way you can act on.
+
+---
+
+## ADDENDUM — the motor was misidentified (2026-11-13, later)
+
+Section 7 flagged that the motor should be confirmed before trusting any
+current threshold. It has now been read off the label, and it is **not**
+the 19.2:1 that this document and the rest of the repo assumed.
+
+**Fitted motor: goBILDA 5203 Yellow Jacket, SKU 5203-2402-0019,
+5.2:1 ratio, 1150 rpm free @ 12 V.**
+
+This changes the central conclusion, so take the numbers above with care.
+
+### What it changes
+
+The measured release speed of ~113-139 rpm was read against an assumed
+312 rpm free speed, giving an apparent efficiency of 36-45%. Against the
+real 1150 rpm free speed it is closer to **10%**.
+
+That is not a small correction. It says the arm is nowhere near the
+motor's speed limit; it is **heavily torque-limited**. The motor has
+speed it cannot use because 5.2:1 is too little reduction to accelerate
+the arm's inertia through a quarter turn.
+
+### What that means for a longer arm
+
+**A longer arm is probably the wrong move.** Lengthening raises inertia
+with the square of length, pushing a mechanism that is already
+torque-starved further into the regime where range gains approach zero.
+The r-squared projection in section 3 assumed far more speed headroom
+than actually exists.
+
+### The better move
+
+**Change the gear ratio, not the arm length.** Trade the speed that is
+not being used for the torque that is missing. This is a parts-bin swap
+rather than fabrication, and it is testable in an evening.
+
+- **50.9:1 (117 rpm):** rejected earlier for being too slow, and that
+  reasoning was sound on its own terms -- 117 rpm free is barely above
+  the ~113 rpm the arm already reaches, so it would likely be slower
+  under load. Still probably not the answer, but much closer than the
+  earlier dismissal implied.
+- **A ratio in between, roughly 13:1 to 19.2:1**, is the shape of the
+  right answer: several times the torque, still 2-3x the tip speed
+  currently achieved. That is a purchase.
+
+### Also affected
+
+Every current threshold in `CompetitionTeleOp.java` was reasoned against
+a ~9.2 A stall that belongs to the **bare 6000 rpm motor**. A 5.2:1
+stalls lower. `FIRE_STALL_AMPS = 8.0` may therefore sit at or above this
+motor's true stall, meaning it would not protect against a genuine jam.
+
+It does reliably trip on stopper contact (measured: "hit stop at 171 ms,
+peak 8.1 A"), so the normal case is covered. The stall current of this
+specific motor has never been measured.
+
+### The validation test still stands
+
+The shorten-the-arm experiment in section 8 is unaffected and is now
+*more* worth running, because it measures the real length exponent
+directly rather than relying on a model whose inputs were wrong.

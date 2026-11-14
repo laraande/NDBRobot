@@ -131,7 +131,7 @@ public class CompetitionTeleOp extends LinearOpMode {
 
     // --- Current limits -------------------------------------------------
     // The only feedback this robot has. Normal running was seen up to ~4 A;
-    // the 19.2:1 motor stalls at ~9.2 A. Watch "peak A" on screen while
+    // the bare 6000 rpm motor stalls at ~9.2 A. Watch "peak A" on screen while
     // firing and set FIRE_STALL_AMPS between normal running and stall.
 
     /**
@@ -152,8 +152,19 @@ public class CompetitionTeleOp extends LinearOpMode {
      * REVISED 2026-11-13 after testing at full power: 5.3 was measured at
      * 0.70 power and turned out to trip DURING the throw at 1.00, cutting
      * shots short. A full-power shot with the cutoff disabled went clearly
-     * further than the same shot with it on. Raised to 8.0, below the ~9.2 A
-     * stall of this motor but above anything a clean full-power throw draws.
+     * further than the same shot with it on. Raised to 8.0.
+     *
+     * CAUTION, identified 2026-11-13 from the motor label: the motor fitted
+     * is a 5203 **5.2:1, 1150 rpm** (SKU 5203-2402-0019), NOT the 19.2:1 the
+     * older notes assumed. The ~9.2 A figure those notes quote belongs to the
+     * bare 6000 rpm motor. A 5.2:1 stalls LOWER than that, so 8.0 may sit at
+     * or above this motor's real stall current, which would mean the cutoff
+     * never protects against a true jam.
+     *
+     * It does currently trip on stopper contact (measured: "hit stop at
+     * 171 ms, peak 8.1 A"), so it is doing its job for the normal case. But
+     * the real stall current of this specific motor has never been measured.
+     * Measure it before trusting this as jam protection.
      *
      * The lesson: a current threshold measured at one power does not transfer
      * to another, because free-running current scales with power. If
