@@ -190,8 +190,29 @@ A good build's backup shows real file sizes. The failing ones showed **every
 sizes. The build service was reading the freshly pushed files as empty, so
 javac compiled nothing and had nothing to report.
 
-**Fix that worked:** trigger the build through the hub's own web API instead
-of the script, which makes the service re-read the files:
+**The actual cause, found 2026-11-13:** `adb push`. Files pushed that way
+land on disk correctly -- `ls`, `md5sum` and even the hub's own HTTP read
+endpoint all return the right bytes -- but the build service's file reader
+sees them as empty. Rebuilding, restarting the app and re-pushing all fail
+the same way, because the push is the problem.
+
+**Fix: write the files through the hub's own save endpoint instead of
+pushing them.** For each file:
+
+```
+adb -s 192.168.43.1:5555 forward tcp:8080 tcp:8080
+```
+
+```
+curl -s -X POST "http://127.0.0.1:8080/java/file/save" --data-urlencode "f=/src/org/firstinspires/ftc/teamcode/CompetitionTeleOp.java" --data-urlencode "data@teamcode/CompetitionTeleOp.java"
+```
+
+Then build. The source backup in `srcBackups/` will show real file sizes and
+the jar will be tens of kilobytes. Pasting the file into the OnBot Java web
+page editor and pressing Build Everything does the same thing by hand.
+
+**Earlier partial fix** (works sometimes, by timing luck only -- do not rely
+on it): trigger the build through the web API after pushing:
 
 ```
 adb -s 192.168.43.1:5555 forward tcp:8080 tcp:8080

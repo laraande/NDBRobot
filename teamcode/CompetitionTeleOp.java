@@ -47,11 +47,29 @@ public class CompetitionTeleOp extends LinearOpMode {
 
     // ===================== DRIVE =====================
 
-    /** Normal driving speed multiplier. 1.00 = full stick is full power. */
-    static final double DRIVE_FULL = 1.00;
+    /**
+     * Normal driving speed multiplier.
+     *
+     * NOT 1.00 on purpose. Tested on blocks 2026-11-13: at full power the
+     * wheels just spin and the robot is not drivable. Lower this if the base
+     * still breaks traction, raise it if the drivers want more once they are
+     * used to it. Tune it in practice, not at the event.
+     */
+    static final double DRIVE_FULL = 0.75;
+    /**
+     * Turning is capped harder than driving. Rotating a mecanum base scrubs
+     * all four wheels sideways, so it loses grip and feels twitchy well
+     * before straight-line driving does.
+     */
+    static final double TURN_SCALE = 0.60;
     /** Slow-mode multiplier, used while gamepad 1's right trigger is held. */
     static final double DRIVE_SLOW = 0.35;
-    /** How far the right trigger must be pulled to count as "held". */
+    /**
+     * How far the right trigger must be pulled to count as "held".
+     * Gamepad 1's LEFT BUMPER does the same thing: a definite click the
+     * driver can find without looking, where the trigger is an analog
+     * squeeze. Either one gives slow mode.
+     */
     static final double SLOW_TRIGGER = 0.5;
     /** Stick movement below this is treated as zero (drift and thumb rest). */
     static final double STICK_DEADZONE = 0.08;
@@ -181,10 +199,16 @@ public class CompetitionTeleOp extends LinearOpMode {
                 pBack = gamepad1.back;
                 pStart = gamepad1.start;
 
-                double speed = gamepad1.right_trigger > SLOW_TRIGGER ? DRIVE_SLOW : DRIVE_FULL;
+                // Slow mode: right trigger OR left bumper, whichever the driver
+                // reaches for. Both are hold-to-engage, not a toggle, so
+                // letting go always returns to normal speed.
+                boolean slowRequested =
+                        gamepad1.right_trigger > SLOW_TRIGGER || gamepad1.left_bumper;
+                double speed = slowRequested ? DRIVE_SLOW : DRIVE_FULL;
+                // Turn is scaled again, on top of the overall speed limit.
                 drive.drive(shape(-gamepad1.left_stick_y),
                             shape(gamepad1.left_stick_x),
-                            shape(gamepad1.right_stick_x),
+                            shape(gamepad1.right_stick_x) * TURN_SCALE,
                             speed);
 
                 // ---------- CATAPULT LIVE TUNING (gamepad 2) ----------
@@ -327,8 +351,8 @@ public class CompetitionTeleOp extends LinearOpMode {
         telemetry.addData("Last shot", lastShot);
         telemetry.addData("Motor A", "%.1f  (cutoff %.1f)  peak %.1f", amps, cutoff, peakAmps);
         telemetry.addData("Battery", "%.2f V", battery.getVoltage());
-        telemetry.addData("Drive", "%s, %s",
-                speed < DRIVE_FULL ? "SLOW" : "full",
+        telemetry.addData("Drive", "%s (%.2f), %s",
+                speed < DRIVE_FULL ? "SLOW" : "normal", speed,
                 drive.isFieldCentric() ? "field-centric" : "robot-centric");
         telemetry.addData("Heading", "%.0f deg (GP1 start to re-zero)", drive.getHeadingDeg());
         telemetry.update();

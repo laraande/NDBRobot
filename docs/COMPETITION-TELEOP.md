@@ -21,8 +21,30 @@ encoder-based and will sit firing until its timeout on this robot.
 | **Left stick** | drive forward/back, strafe left/right |
 | **Right stick X** | turn |
 | **Right trigger** (hold) | slow mode, 35% speed, for lining up |
+| **Left bumper** (hold) | slow mode as well -- same thing, easier to find |
 | **Back** | toggle field-centric / robot-centric |
 | **Start** | re-zero the heading |
+
+### Speed limits
+
+Full stick is **not** full motor power, deliberately.
+
+| Setting | Value | What it limits |
+|---|---|---|
+| `DRIVE_FULL` | 0.75 | normal driving and strafing |
+| `TURN_SCALE` | 0.60 | turning, on top of the above |
+| `DRIVE_SLOW` | 0.35 | everything, while the right trigger is held |
+
+Tested on blocks on 2026-11-13: at 1.00 the wheels simply spin and the robot
+is not drivable. Turning is capped harder than driving because rotating a
+mecanum base scrubs all four wheels sideways, so it loses grip first.
+
+The stick is also **squared**, so half stick gives about a quarter of that
+power. Fine control near centre, full available at the end of the travel.
+
+These are the numbers most worth adjusting after the drivers have had a
+practice session. Raise `DRIVE_FULL` if they want more speed; lower it if
+the base still breaks traction. Change them in practice, not at the event.
 
 Driving is **robot-centric by default** — stick forward moves the end of the
 robot away from the catapult forward, whichever way the robot is facing. This
@@ -184,6 +206,8 @@ Wheels off the ground. Battery above 12 V, or results mean nothing.
 | Arm will not move at all | `JOG_POWER` — 0.25 was measured as too weak for a loaded arm; it is set to 0.55 |
 | Robot turns instead of driving straight | drive directions; re-run `0 BringUp` test 1, do not guess |
 | Driving feels rotated | field-centric got toggled on. Press BACK to turn it off |
+| Wheels spin / robot feels uncontrollable | lower `DRIVE_FULL`, and `TURN_SCALE` if it is the turning |
+| Robot feels sluggish | raise `DRIVE_FULL`; check the right trigger or left bumper is not stuck in slow mode |
 
 Set `FIRE_STALL_AMPS` to `99` to disable the current cutoff entirely and run
 on time alone. That is the fallback if current readings turn out to be
