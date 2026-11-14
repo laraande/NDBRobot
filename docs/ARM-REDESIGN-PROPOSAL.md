@@ -318,3 +318,42 @@ specific motor has never been measured.
 The shorten-the-arm experiment in section 8 is unaffected and is now
 *more* worth running, because it measures the real length exponent
 directly rather than relying on a model whose inputs were wrong.
+
+---
+
+## RESULT — the longer arm was tried and was WORSE (2026-11-13)
+
+The addendum above predicted that lengthening the arm would not help,
+because the motor is torque-limited rather than speed-limited. That was
+then tested on the robot.
+
+**Result: a longer arm was visibly slower.** Not neutral -- worse.
+
+This closes the question. The arm-length path is not the way to more
+range on this mechanism, and the r-squared projection in section 3 should
+be disregarded: it assumed speed headroom that a 5.2:1 at 10% of free
+speed does not have.
+
+**What this confirms:** the mechanism is torque-limited. Added inertia at
+the tip costs more in angular acceleration than the extra radius returns
+in tip speed. Any change that adds tip mass or length will behave the
+same way.
+
+**What to try instead, in order of effort:**
+
+1. **More gear reduction.** The direct fix for a torque limit. Trades
+   speed that is measurably not being used for torque that is
+   measurably missing. Roughly 13:1 to 19.2:1 is the shape of it; the
+   50.9:1 in the parts bin is likely too slow but is the only one on
+   hand to try. This is the highest-value experiment.
+2. **Reduce tip mass.** Same physics as the length result, in reverse. A
+   lighter tray and arm raise angular acceleration directly. Free, if
+   there is anything to remove.
+3. **Energy storage** (surgical tubing or a spring the motor winds up
+   slowly and releases fast). Decouples throw speed from motor speed
+   entirely and is how most competitive catapults solve this. The real
+   answer, and a proper off-season project rather than a quick change.
+
+**What not to try again:** a longer arm, a heavier ball tray, or more
+fire power. All three have now been tested and none of them helps. Power
+was swept from 0.50 to 1.00 with range stuck at 2-3 ft throughout.
