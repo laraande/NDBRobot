@@ -119,14 +119,26 @@ public class CompetitionTeleOp extends LinearOpMode {
     static final double FIRE_STALL_AMPS = 7.0;
     /**
      * Current that means "the arm is back home against the rest stop".
-     * MUST be lower than FIRE_STALL_AMPS: the return runs at a much lower
-     * power, so it draws far less current even when fully stalled. If this is
-     * set too high the arm never "arrives" and grinds against the home stop
-     * for the whole of RETURN_MS.
+     *
+     * Measured on the robot 2026-11-13: with the arm resting against the home
+     * stop under spring tension and ZERO commanded power, this motor already
+     * reads 4.2 A. That is the spring being held back through BRAKE mode, not
+     * the motor driving. Off the stop it reads 0.0 A.
+     *
+     * So this threshold MUST sit above 4.2 A, or the return trips on the
+     * resting current the moment the ignore window ends and decides it is
+     * home before the arm has moved. The first guess here was 3.0, which was
+     * below the resting current and would have done exactly that.
+     *
+     * It must also stay below FIRE_STALL_AMPS, since the return runs at a
+     * much lower power than a throw.
      */
-    static final double RETURN_STALL_AMPS = 3.0;
-    /** Current that aborts a manual jog, so a held dpad cannot stall the motor. */
-    static final double JOG_STALL_AMPS = 6.0;
+    static final double RETURN_STALL_AMPS = 5.5;
+    /**
+     * Current that aborts a manual jog, so a held dpad cannot stall the motor.
+     * Also above the 4.2 A resting reading, for the same reason.
+     */
+    static final double JOG_STALL_AMPS = 6.5;
     /** Ignore current readings for this long after a move starts (inrush spike). */
     static final double IGNORE_MS = 80;
 
