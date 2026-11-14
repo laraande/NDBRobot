@@ -20,7 +20,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  *   2. Driver Station: choose "1 Auto Leave Wall", press INIT.
  *   3. While INIT is showing you may adjust with gamepad 1 (screen shows it):
  *        dpad up / down     drive time  +/- 100 ms
- *        dpad right / left  start delay +/- 500 ms (wait for a partner)
+ *        dpad right / left  start delay +/- 500 ms (default 1 s)
  *        Y                  flip direction (forward / backward)
  *      Then hands off.
  *   4. On the referee's "go", press START (the play button).
@@ -44,8 +44,14 @@ public class AutoLeaveWall extends LinearOpMode {
     /** How long to drive. A GUESS until timed on the practice field. */
     static final double DRIVE_MS = 1500;
 
-    /** Wait this long after START before moving. 0 = go immediately. */
-    static final double START_DELAY_MS = 0;
+    /**
+     * Wait this long after START before moving. 0 = go immediately.
+     *
+     * Defaults to 1 s so the robot never jumps the instant play is pressed:
+     * hands are clear of the field, and an alliance partner leaving the same
+     * wall gets a head start. Adjust in INIT with dpad right/left.
+     */
+    static final double START_DELAY_MS = 1000;
 
     /** +1 drives forward (away from the catapult end), -1 drives backward. */
     static final int DIRECTION = 1;
