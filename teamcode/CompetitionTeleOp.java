@@ -100,7 +100,7 @@ public class CompetitionTeleOp extends LinearOpMode {
      * FIRE_MS before anything cut it. Start gentle, read the peak amps off
      * the screen, then raise this with dpad right until the throw is right.
      */
-    static final double FIRE_POWER = 0.50;
+    static final double FIRE_POWER = 0.70;
     /**
      * Longest a throw may run. The current cutoff normally ends it sooner.
      *
@@ -108,7 +108,7 @@ public class CompetitionTeleOp extends LinearOpMode {
      * a time, once the first shots show how long the arm actually takes to
      * reach the stopper.
      */
-    static final double FIRE_MS = 150;
+    static final double FIRE_MS = 200;
     /** Quiet pause after the throw, before the arm starts coming back. */
     static final double SETTLE_MS = 200;
     /** Gentle power for the return. Negative = back toward home. */
@@ -129,8 +129,25 @@ public class CompetitionTeleOp extends LinearOpMode {
     // the 19.2:1 motor stalls at ~9.2 A. Watch "peak A" on screen while
     // firing and set FIRE_STALL_AMPS between normal running and stall.
 
-    /** Current that means "the arm hit the fire-end stop". Set 99 to disable. */
-    static final double FIRE_STALL_AMPS = 7.0;
+    /**
+     * Current that means "the arm hit the fire-end stop". Set 99 to disable.
+     *
+     * MEASURED 2026-11-13, after the launch stopper was fitted:
+     *   0.50 power, arm never reaches the stopper -> peak 3.4-3.5 A
+     *   0.70 power, arm DOES reach the stopper    -> peak 5.7 A
+     *
+     * Free-running at 0.70 scales to about 4.9 A, so the extra ~0.8 A is the
+     * arm loading against the stopper. 5.3 sits between the two: high enough
+     * not to trip on a clean throw, low enough to catch stopper contact.
+     *
+     * The old value of 7.0 was an unverified guess and was never reached, so
+     * shots read "timed out" while the motor kept driving into the bracket
+     * for the rest of FIRE_MS. That is what this fixes.
+     *
+     * Re-measure if the power, the spring or the stopper position changes:
+     * the threshold is specific to all three.
+     */
+    static final double FIRE_STALL_AMPS = 5.3;
     /**
      * Current that means "the arm is back home against the rest stop".
      *
