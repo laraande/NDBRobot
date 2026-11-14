@@ -50,16 +50,23 @@ public class CompetitionTeleOp extends LinearOpMode {
     /**
      * Normal driving speed multiplier.
      *
-     * NOT 1.00 on purpose. Tested on blocks 2026-11-13: at full power the
-     * wheels just spin and the robot is not drivable. Lower this if the base
-     * still breaks traction, raise it if the drivers want more once they are
-     * used to it. Tune it in practice, not at the event.
+     * NOT 1.00 on purpose. At full power the wheels just spin and the robot
+     * is not drivable.
+     *
+     * 0.75 was tried on the robot on 2026-11-13 and confirmed good by the
+     * driver: "a lot less twitchy". Checked on blocks only, so if it feels
+     * different on the floor this is the number to change. Raise it if the
+     * drivers want more once they are used to it. Tune it in practice, not
+     * at the event.
      */
     static final double DRIVE_FULL = 0.75;
     /**
      * Turning is capped harder than driving. Rotating a mecanum base scrubs
      * all four wheels sideways, so it loses grip and feels twitchy well
      * before straight-line driving does.
+     *
+     * 0.60 confirmed by the driver on 2026-11-13. Combined with DRIVE_FULL
+     * that is 0.45 at full stick, which is where the twitchiness went.
      */
     static final double TURN_SCALE = 0.60;
     /** Slow-mode multiplier, used while gamepad 1's right trigger is held. */

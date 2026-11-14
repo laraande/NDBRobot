@@ -39,6 +39,11 @@ Tested on blocks on 2026-11-13: at 1.00 the wheels simply spin and the robot
 is not drivable. Turning is capped harder than driving because rotating a
 mecanum base scrubs all four wheels sideways, so it loses grip first.
 
+These values were tried on the robot and confirmed by the driver the same
+evening ("a lot less twitchy"), **on blocks**. They have not yet been driven
+on the floor, where the motors are loaded by the robot's weight and will feel
+slower and more planted. Check them in the first practice session.
+
 The stick is also **squared**, so half stick gives about a quarter of that
 power. Fine control near centre, full available at the end of the travel.
 
