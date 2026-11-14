@@ -56,7 +56,9 @@ public class MecanumDrive {
 
     private final DcMotorEx fl, fr, bl, br;
     private IMU imu;
-    private final boolean fieldCentric;
+    // Not final: the driver can toggle field-centric at runtime with the BACK
+    // button. The IMU is always initialised (see below) so the toggle is safe.
+    private boolean fieldCentric;
 
     public MecanumDrive(HardwareMap hw, boolean fieldCentric) {
         this.fieldCentric = fieldCentric;
@@ -76,20 +78,30 @@ public class MecanumDrive {
             m.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         }
 
-        if (fieldCentric) {
-            imu = hw.get(IMU.class, "imu");
-            imu.initialize(new IMU.Parameters(new RevHubOrientationOnRobot(LOGO_DIR, USB_DIR)));
-            imu.resetYaw();
-        }
+        // The IMU is initialised whether or not we start in field-centric mode.
+        // It costs nothing when unused, and it means setFieldCentric(true) part
+        // way through a match cannot land on an uninitialised IMU.
+        imu = hw.get(IMU.class, "imu");
+        imu.initialize(new IMU.Parameters(new RevHubOrientationOnRobot(LOGO_DIR, USB_DIR)));
+        imu.resetYaw();
+    }
+
+    /** Turn field-centric driving on or off mid-match. */
+    public void setFieldCentric(boolean on) {
+        fieldCentric = on;
+    }
+
+    public boolean isFieldCentric() {
+        return fieldCentric;
     }
 
     /** Make the robot's current facing "forward" for field-centric driving. */
     public void resetHeading() {
-        if (fieldCentric) imu.resetYaw();
+        imu.resetYaw();
     }
 
     public double getHeadingDeg() {
-        return fieldCentric ? imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES) : 0.0;
+        return imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
     }
 
     /**
