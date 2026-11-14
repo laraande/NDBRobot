@@ -159,6 +159,64 @@ a travel limit -- they all read the encoder.
 
 ---
 
+## build-on-robot.sh keeps saying "BUILD PRODUCED AN EMPTY JAR"
+
+Seen 2026-11-13, three times in a row, so the script's own advice ("just run
+it again") did not help.
+
+**Symptoms.** The build reports success in about **one second**, writes a
+**zero-byte** `buildLog.txt`, and leaves `build/classes/` empty. The jar is
+166 bytes. No op modes register. A real build of four files takes **ten to
+fifteen seconds** and makes a jar of tens of kilobytes, so the timing alone
+tells the two apart.
+
+**Not the cause** (all checked and ruled out that night):
+
+- the source files -- `md5sum` on the hub matched the laptop exactly
+- the SDK jars in `/sdcard/FIRST/java/lib/` -- intact, `unzip -t` clean,
+  md5 equal to `tools/lib/`
+- a stale Robot Controller -- force-stopping and relaunching changed nothing
+- disk space -- 12 GB free
+
+The giveaway is in the build's own source backup. Pull the newest zip from
+`/sdcard/FIRST/java/srcBackups/` and list it:
+
+```
+unzip -l OnBot-build-<newest>.zip
+```
+
+A good build's backup shows real file sizes. The failing ones showed **every
+`.java` file at 0 bytes**, while `ls` on the same files reported correct
+sizes. The build service was reading the freshly pushed files as empty, so
+javac compiled nothing and had nothing to report.
+
+**Fix that worked:** trigger the build through the hub's own web API instead
+of the script, which makes the service re-read the files:
+
+```
+adb -s 192.168.43.1:5555 forward tcp:8080 tcp:8080
+```
+
+```
+curl -s "http://127.0.0.1:8080/java/build/start"
+```
+
+Then wait for `"completed":true` and check the size, which should be tens of
+thousands of bytes, not 166:
+
+```
+curl -s "http://127.0.0.1:8080/java/build/status"
+```
+
+That produced a 24,695-byte jar and all three op modes registered. Pressing
+**Build Everything** on the OnBot Java web page at `http://192.168.43.1:8080`
+does the same thing from a browser.
+
+**If it happens at an event**, go straight to the web page. Do not spend
+time re-running the script.
+
+---
+
 ## General advice
 
 **Do not trust "build successful" on its own.** Check that op modes
@@ -168,5 +226,8 @@ actually registered:
 adb -s 192.168.43.1:5555 logcat -d | grep "OpmodeRegistration: registered"
 ```
 
-`TeleOp2026` and `0 BringUp` should both appear. `scripts/restart-robot-app.sh`
-prints this list for you.
+`0 BringUp`, `TeleOp2026` and `1 Competition` should all appear.
+`scripts/restart-robot-app.sh` prints this list for you.
+
+A jar size under about 2000 bytes means nothing was compiled, whatever the
+build said. Check it before believing a deploy.
