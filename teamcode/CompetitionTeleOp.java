@@ -91,10 +91,24 @@ public class CompetitionTeleOp extends LinearOpMode {
     /** Positive power throws. Measured on the robot, do not flip blindly. */
     static final DcMotorSimple.Direction CATAPULT_DIR = DcMotorSimple.Direction.FORWARD;
 
-    /** Power used for a throw, before voltage compensation. */
-    static final double FIRE_POWER = 1.00;
-    /** Longest a throw may run. The current cutoff normally ends it sooner. */
-    static final double FIRE_MS = 300;
+    /**
+     * Power used for a throw, before voltage compensation.
+     *
+     * DELIBERATELY LOW for first testing (2026-11-13). The launch stopper is
+     * newly fitted and FIRE_STALL_AMPS has never been verified on this motor,
+     * so a full-power shot could drive into the stopper for the remainder of
+     * FIRE_MS before anything cut it. Start gentle, read the peak amps off
+     * the screen, then raise this with dpad right until the throw is right.
+     */
+    static final double FIRE_POWER = 0.50;
+    /**
+     * Longest a throw may run. The current cutoff normally ends it sooner.
+     *
+     * Also deliberately short to start. Raise with the right bumper, 25 ms at
+     * a time, once the first shots show how long the arm actually takes to
+     * reach the stopper.
+     */
+    static final double FIRE_MS = 150;
     /** Quiet pause after the throw, before the arm starts coming back. */
     static final double SETTLE_MS = 200;
     /** Gentle power for the return. Negative = back toward home. */
@@ -120,18 +134,19 @@ public class CompetitionTeleOp extends LinearOpMode {
     /**
      * Current that means "the arm is back home against the rest stop".
      *
-     * Measured on the robot 2026-11-13: with the arm resting against the home
-     * stop under spring tension and ZERO commanded power, this motor already
-     * reads 4.2 A. That is the spring being held back through BRAKE mode, not
-     * the motor driving. Off the stop it reads 0.0 A.
+     * History worth keeping: on the PREVIOUS build the arm rested against the
+     * home stop under spring tension and drew 4.2 A at zero commanded power,
+     * through BRAKE mode. This was raised to 5.5 to clear that.
      *
-     * So this threshold MUST sit above 4.2 A, or the return trips on the
-     * resting current the moment the ignore window ends and decides it is
-     * home before the arm has moved. The first guess here was 3.0, which was
-     * below the resting current and would have done exactly that.
+     * After the catapult was rebuilt with a launch stopper (2026-11-13) the
+     * cocked arm reads 0.0 A -- it is held mechanically, not by the motor.
+     * So the 4.2 A floor no longer applies and 5.5 may now be too HIGH to
+     * detect the home stop on the return, in which case the return simply
+     * runs the full RETURN_MS instead of stopping early. That is untidy but
+     * not dangerous; the return runs at only 0.30 power.
      *
-     * It must also stay below FIRE_STALL_AMPS, since the return runs at a
-     * much lower power than a throw.
+     * Lower this once a real return-into-home peak has been read off the
+     * screen. It must stay below FIRE_STALL_AMPS.
      */
     static final double RETURN_STALL_AMPS = 5.5;
     /**
