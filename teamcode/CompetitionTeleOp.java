@@ -32,11 +32,16 @@ import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
  *   start             re-zero the heading (point the robot downfield first)
  *
  * GAMEPAD 2 (operator)
- *   A                 fire (then settles and auto-returns home)
- *   B                 STOP the catapult immediately - overrides everything
+ *   A                 fire arm 1, the original catapult (then auto-returns)
+ *   Y                 fire arm 2, the new 50.9:1 arm   (then auto-returns)
+ *   B                 STOP BOTH arms immediately - overrides everything
  *   dpad up / down    jog the arm by hand
  *   dpad right/left   fire power  +/- 0.05   (tuning, shown on screen)
  *   right/left bumper fire time   +/- 25 ms  (tuning, shown on screen)
+ *   X                 cutoff on/off (experiments only)
+ *
+ *   HOLD LEFT TRIGGER to point the dpad, bumpers and X at ARM 2 instead of
+ *   arm 1. Let go and they control arm 1 again. A, Y and B always work.
  *
  * Tuned values reset every time the op mode starts. When you find good ones,
  * write them into FIRE_POWER / FIRE_MS below and rebuild. See
@@ -283,6 +288,59 @@ public class CompetitionTeleOp extends LinearOpMode {
     static final double MIN_FIRE_POWER = 0.10;
     static final double MIN_FIRE_MS = 25;
 
+    // =================== ARM 2 (the new arm, added 2026-11-14) ===================
+    // A SEPARATE arm with its own motor. Fired by Y. No encoder.
+    //
+    // Motor: goBILDA 5203, 50.9:1, 117 rpm. That is about TEN TIMES slower and
+    // TEN TIMES stronger than arm 1's 5.2:1. None of arm 1's numbers carry
+    // over, so arm 2 has its own. Every value below is an UNTESTED STARTING
+    // POINT: start gentle, read "Arm 2 last shot" on the screen, then tune
+    // live (hold left trigger + dpad / bumpers) and write the result back here.
+
+    /** Name in the Driver Station configuration. Must match exactly. */
+    static final String ARM2_NAME = "catapult2";
+    /** Positive power throws. CHECK with a gentle jog before the first fire. */
+    static final DcMotorSimple.Direction ARM2_DIR = DcMotorSimple.Direction.FORWARD;
+    /**
+     * Starting fire power. Deliberately moderate: at 50.9:1 this motor has a
+     * lot of torque, and slamming into the stopper at full power is hard on
+     * the bracket and the screws. Raise with left trigger + dpad right.
+     */
+    static final double ARM2_FIRE_POWER = 0.60;
+    /**
+     * Longest a throw may run. At full speed the output turns about 700 deg/s,
+     * so a quarter turn takes roughly 130 ms unloaded; at 0.60 power and with
+     * the arm's weight, a few hundred ms. 400 is a guess with margin. If shots
+     * read "timed out" and the arm DID reach the stop, lower it.
+     */
+    static final double ARM2_FIRE_MS = 400;
+    /**
+     * Current that means "arm 2 hit the stop". Must be BELOW what the motor
+     * can draw at the power you are using, or it can never trip: a 5203
+     * stalls at about 9.2 A at full power, so roughly 9.2 x power.
+     * At 0.60 power that is about 5.5 A, so 4.0 leaves room. If you change
+     * the power a lot, change this too (see the lesson on FIRE_STALL_AMPS).
+     */
+    static final double ARM2_FIRE_STALL_AMPS = 4.0;
+    /**
+     * Blind time after starting, so the start-up current spike is not
+     * mistaken for hitting the stop. Longer than arm 1's because the heavy
+     * gearbox takes longer to get going. If shots stop instantly with
+     * "hit stop at 60 ms", raise this.
+     */
+    static final double ARM2_IGNORE_MS = 60;
+    static final double ARM2_SETTLE_MS = 200;
+    /** Return toward home. Slow motor, so it needs longer than arm 1. */
+    static final double ARM2_RETURN_POWER = -0.30;
+    static final double ARM2_RETURN_MS = 1500;
+    /** At 0.30 power the motor can only draw ~2.8 A, so the cutoff sits below that. */
+    static final double ARM2_RETURN_STALL_AMPS = 2.3;
+    static final double ARM2_JOG_POWER = 0.40;
+    static final double ARM2_JOG_STALL_AMPS = 3.0;
+    static final double ARM2_JOG_MAX_MS = 600;
+    /** Left trigger past this = the tuning controls point at arm 2. */
+    static final double ARM2_SELECT_TRIGGER = 0.5;
+
     /** Telemetry refresh. The default 250 ms is too slow to read peak amps. */
     static final int TELEMETRY_MS = 50;
 
@@ -303,6 +361,8 @@ public class CompetitionTeleOp extends LinearOpMode {
     private boolean cutoffOn = true;
     private String lastShot = "none yet";
 
+    private Arm2 arm2;
+
     @Override
     public void runOpMode() {
         MecanumDrive drive = new MecanumDrive(hardwareMap, START_FIELD_CENTRIC);
@@ -314,6 +374,8 @@ public class CompetitionTeleOp extends LinearOpMode {
         catapult.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         battery = hardwareMap.voltageSensor.iterator().next();
+
+        arm2 = new Arm2(hardwareMap.get(DcMotorEx.class, ARM2_NAME));
 
         // One bulk read per loop instead of a separate call per sensor. Keeps
         // the loop fast enough that the current cutoff reacts in time.
@@ -330,7 +392,7 @@ public class CompetitionTeleOp extends LinearOpMode {
         waitForStart();
 
         // Previous-frame button states, for rising-edge detection.
-        boolean pA = false;
+        boolean pA = false, pY = false;
         boolean pDpadL = false, pDpadR = false, pLB = false, pRB = false, pX = false;
         boolean pBack = false, pStart = false;
 
@@ -362,19 +424,28 @@ public class CompetitionTeleOp extends LinearOpMode {
                             speed);
 
                 // ---------- CATAPULT LIVE TUNING (gamepad 2) ----------
+                // Holding the left trigger points these at arm 2 instead.
+                boolean arm2Sel = gamepad2.left_trigger > ARM2_SELECT_TRIGGER;
                 if (gamepad2.dpad_right && !pDpadR) {
-                    firePower = Math.min(1.0, firePower + POWER_STEP);
+                    if (arm2Sel) arm2.firePower = Math.min(1.0, arm2.firePower + POWER_STEP);
+                    else firePower = Math.min(1.0, firePower + POWER_STEP);
                 }
                 if (gamepad2.dpad_left && !pDpadL) {
-                    firePower = Math.max(MIN_FIRE_POWER, firePower - POWER_STEP);
+                    if (arm2Sel) arm2.firePower = Math.max(MIN_FIRE_POWER, arm2.firePower - POWER_STEP);
+                    else firePower = Math.max(MIN_FIRE_POWER, firePower - POWER_STEP);
                 }
                 if (gamepad2.right_bumper && !pRB) {
-                    fireMs += TIME_STEP_MS;
+                    if (arm2Sel) arm2.fireMs += TIME_STEP_MS;
+                    else fireMs += TIME_STEP_MS;
                 }
                 if (gamepad2.left_bumper && !pLB) {
-                    fireMs = Math.max(MIN_FIRE_MS, fireMs - TIME_STEP_MS);
+                    if (arm2Sel) arm2.fireMs = Math.max(MIN_FIRE_MS, arm2.fireMs - TIME_STEP_MS);
+                    else fireMs = Math.max(MIN_FIRE_MS, fireMs - TIME_STEP_MS);
                 }
-                if (gamepad2.x && !pX) cutoffOn = !cutoffOn;
+                if (gamepad2.x && !pX) {
+                    if (arm2Sel) arm2.cutoffOn = !arm2.cutoffOn;
+                    else cutoffOn = !cutoffOn;
+                }
                 pX = gamepad2.x;
                 pDpadR = gamepad2.dpad_right;
                 pDpadL = gamepad2.dpad_left;
@@ -391,7 +462,9 @@ public class CompetitionTeleOp extends LinearOpMode {
                     // the same pass. Releasing B leaves the arm wherever it is.
                     catapult.setPower(0);
                     state = Cat.IDLE;
+                    arm2.stop();
                     pA = gamepad2.a;
+                    pY = gamepad2.y;
                     showTelemetry(drive, amps, speed);
                     continue;
                 }
@@ -406,12 +479,18 @@ public class CompetitionTeleOp extends LinearOpMode {
                 }
                 pA = gamepad2.a;
 
+                // ARM 2: Y fires it. Its own state machine, runs every loop.
+                if (gamepad2.y && !pY) arm2.fire();
+                pY = gamepad2.y;
+                arm2.update(arm2Sel && gamepad2.dpad_up, arm2Sel && gamepad2.dpad_down);
+
                 switch (state) {
                     case IDLE:
                     case JOG:
-                        if (gamepad2.dpad_up) {
+                        // With the left trigger held the dpad belongs to arm 2.
+                        if (gamepad2.dpad_up && !arm2Sel) {
                             startOrContinueJog(JOG_POWER, amps);
-                        } else if (gamepad2.dpad_down) {
+                        } else if (gamepad2.dpad_down && !arm2Sel) {
                             startOrContinueJog(-JOG_POWER, amps);
                         } else if (state == Cat.JOG) {
                             // Jog released: back to rest.
@@ -469,6 +548,7 @@ public class CompetitionTeleOp extends LinearOpMode {
             // including when it ends because of an exception or a stop press.
             drive.stop();
             catapult.setPower(0);
+            arm2.stop();
         }
     }
 
@@ -537,6 +617,12 @@ public class CompetitionTeleOp extends LinearOpMode {
         telemetry.addData("Last shot", lastShot);
         telemetry.addData("Cutoff", cutoffOn ? "on (X toggles)" : "*** CUTOFF OFF ***");
         telemetry.addData("Motor A", "%.1f  (cutoff %.1f)  peak %.1f", amps, cutoff, peakAmps);
+        telemetry.addLine("--- ARM 2 (Y fires, hold LT to tune) ---");
+        telemetry.addData("Arm 2", "%s   power %.2f   time %.0f ms",
+                arm2.state, arm2.firePower, arm2.fireMs);
+        telemetry.addData("Arm 2 last shot", arm2.lastShot);
+        telemetry.addData("Arm 2 A", "%.1f  peak %.1f  %s", arm2.amps, arm2.peakAmps,
+                arm2.cutoffOn ? "" : "*** CUTOFF OFF ***");
         telemetry.addData("Battery", "%.2f V", battery.getVoltage());
         telemetry.addData("Drive", "%s (%.2f), %s",
                 speed < DRIVE_FULL ? "SLOW" : "normal", speed,
@@ -554,6 +640,118 @@ public class CompetitionTeleOp extends LinearOpMode {
         double v = battery.getVoltage();
         double scaled = (v > MIN_SANE_VOLTS) ? power * NOMINAL_VOLTS / v : power;
         catapult.setPower(Math.max(-1.0, Math.min(1.0, scaled)));
+    }
+
+    /**
+     * Arm 2: the new, separate arm. Same idea as arm 1 (fire for a set time,
+     * stop early on a current spike, settle, return) but simpler: no taper,
+     * and every number is its own ARM2_ constant.
+     *
+     * Kept apart from arm 1 on purpose so adding it could not change how the
+     * tested arm 1 behaves on competition day.
+     */
+    private class Arm2 {
+        final DcMotorEx motor;
+        final ElapsedTime timer = new ElapsedTime();
+        Cat state = Cat.IDLE;
+        double firePower = ARM2_FIRE_POWER;
+        double fireMs = ARM2_FIRE_MS;
+        double amps = 0;
+        double peakAmps = 0;
+        boolean cutoffOn = true;
+        String lastShot = "none yet";
+
+        Arm2(DcMotorEx motor) {
+            this.motor = motor;
+            motor.setDirection(ARM2_DIR);
+            motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+            motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            motor.setPower(0);
+        }
+
+        /** Start a throw. Ignored unless the arm is standing still. */
+        void fire() {
+            if (state != Cat.IDLE) return;
+            peakAmps = 0;
+            timer.reset();
+            state = Cat.FIRING;
+            setPower(firePower);
+        }
+
+        /** Cut power now and go idle. Used by B and at the end of the match. */
+        void stop() {
+            motor.setPower(0);
+            state = Cat.IDLE;
+        }
+
+        /** Call once per loop. Never blocks. */
+        void update(boolean jogUp, boolean jogDown) {
+            amps = motor.getCurrent(CurrentUnit.AMPS);
+            double ms = timer.milliseconds();
+            boolean settled = ms > ARM2_IGNORE_MS;
+
+            switch (state) {
+                case IDLE:
+                case JOG:
+                    if (jogUp || jogDown) {
+                        if (state != Cat.JOG) {
+                            timer.reset();
+                            peakAmps = 0;
+                            state = Cat.JOG;
+                            ms = 0;
+                            settled = false;
+                        }
+                        if (settled) peakAmps = Math.max(peakAmps, amps);
+                        if ((settled && amps > ARM2_JOG_STALL_AMPS) || ms >= ARM2_JOG_MAX_MS) {
+                            // Release the dpad to jog again.
+                            motor.setPower(0);
+                        } else {
+                            setPower(jogUp ? ARM2_JOG_POWER : -ARM2_JOG_POWER);
+                        }
+                    } else if (state == Cat.JOG) {
+                        motor.setPower(0);
+                        state = Cat.IDLE;
+                    }
+                    break;
+
+                case FIRING:
+                    if (settled) peakAmps = Math.max(peakAmps, amps);
+                    setPower(firePower);   // re-sent so battery sag is tracked
+                    double cutoff = cutoffOn ? ARM2_FIRE_STALL_AMPS : CUTOFF_DISABLED_AMPS;
+                    boolean hitStop = settled && amps > cutoff;
+                    if (hitStop || ms >= fireMs) {
+                        lastShot = String.format("%s at %.0f ms, peak %.1f A",
+                                hitStop ? "hit stop" : "timed out", ms, peakAmps);
+                        motor.setPower(0);
+                        timer.reset();
+                        state = Cat.SETTLE;
+                    }
+                    break;
+
+                case SETTLE:
+                    if (ms >= ARM2_SETTLE_MS) {
+                        setPower(ARM2_RETURN_POWER);
+                        timer.reset();
+                        state = Cat.RETURNING;
+                    }
+                    break;
+
+                case RETURNING:
+                    boolean home = settled && amps > ARM2_RETURN_STALL_AMPS;
+                    if (home || ms >= ARM2_RETURN_MS) {
+                        motor.setPower(0);
+                        state = Cat.IDLE;
+                    }
+                    break;
+            }
+        }
+
+        /** Same battery compensation as arm 1. */
+        private void setPower(double power) {
+            double v = battery.getVoltage();
+            double scaled = (v > MIN_SANE_VOLTS) ? power * NOMINAL_VOLTS / v : power;
+            motor.setPower(Math.max(-1.0, Math.min(1.0, scaled)));
+        }
     }
 
     /**
