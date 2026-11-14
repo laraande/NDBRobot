@@ -186,8 +186,55 @@ public class CompetitionTeleOp extends LinearOpMode {
      * Also above the 4.2 A resting reading, for the same reason.
      */
     static final double JOG_STALL_AMPS = 6.5;
-    /** Ignore current readings for this long after a move starts (inrush spike). */
-    static final double IGNORE_MS = 80;
+
+    // --- End-of-arc power taper -----------------------------------------
+    /**
+     * Fraction of FIRE_MS after which the throw starts easing off power.
+     *
+     * ADDED 2026-11-13. Firing at full power until the instant of contact
+     * means the gearbox absorbs peak torque and peak speed in the same
+     * moment, every single shot, and this robot has no fire-end hard stop to
+     * take that load instead. Tapering costs a little release speed and buys
+     * a large reduction in shock through the output stage and the stopper
+     * bracket's fasteners.
+     *
+     * 0.75 of a 200 ms FIRE_MS starts the taper at 150 ms, just before the
+     * 171 ms stop time measured on 2026-11-13. Set TAPER_START_FRAC to 1.0
+     * to disable the taper entirely and go back to flat full power.
+     *
+     * This is open-loop and time-based because there is no encoder: it
+     * assumes the arm takes roughly FIRE_MS to cross the arc. If the battery
+     * sags or the stopper moves, the taper drifts relative to actual contact.
+     * Re-check the logged stop time after changing FIRE_POWER or FIRE_MS.
+     */
+    static final double TAPER_START_FRAC = 0.75;
+    /**
+     * Power multiplier at the very end of the taper. 1.0 = no taper.
+     *
+     * Not lower than this: the arm still has to reach the stopper and trip
+     * the current cutoff. Too deep a taper and shots read "timed out"
+     * instead of "hit stop" because the arm arrives too softly.
+     */
+    static final double TAPER_END_SCALE = 0.55;
+    /**
+     * Ignore current readings for this long after a move starts (inrush spike).
+     *
+     * LOWERED from 80 to 25 on 2026-11-13. 80 ms was far more blind time than
+     * the inrush actually needs, and it was hiding the event we most wanted to
+     * measure: no "hit stop" can be reported before this many milliseconds, so
+     * an arm that reaches the stopper early kept driving at full power until
+     * the window expired. That is exactly the load the gearbox should not see.
+     *
+     * It also made the logged stop time unusable as a measurement. The
+     * "hit stop at 171 ms" reading that the arm-length analysis was based on
+     * could have been any contact from 80 ms onward, which is why no single
+     * constant-acceleration fit matched the ball's measured flight.
+     *
+     * The inrush spike on a 5203 is largely over within 20 ms. 25 leaves a
+     * small margin. If shots start cutting out at the very start of the throw,
+     * raise this in 5 ms steps -- do not go back to 80.
+     */
+    static final double IGNORE_MS = 25;
 
     /**
      * Longest a single manual jog may run, in milliseconds.
@@ -366,6 +413,11 @@ public class CompetitionTeleOp extends LinearOpMode {
                         if (settled) {
                             peakAmps = Math.max(peakAmps, amps);
                         }
+                        // Ease off power toward the end of the arc so the
+                        // stopper and the gearbox do not take peak torque and
+                        // peak speed at the same instant. Re-commanded every
+                        // pass because setCat() also rescales for battery sag.
+                        setCat(firePower * taperScale(timer.milliseconds()));
                         boolean hitStop = settled && amps > fireCutoff();
                         if (hitStop || timer.milliseconds() >= fireMs) {
                             lastShot = String.format("%s at %.0f ms, peak %.1f A",
@@ -438,6 +490,20 @@ public class CompetitionTeleOp extends LinearOpMode {
         }
     }
 
+    /**
+     * Power multiplier for where we are through the throw: 1.0 for the first
+     * TAPER_START_FRAC of FIRE_MS, then ramping linearly down to
+     * TAPER_END_SCALE at the end. Open-loop; see TAPER_START_FRAC.
+     */
+    private double taperScale(double elapsedMs) {
+        double start = fireMs * TAPER_START_FRAC;
+        if (elapsedMs <= start) return 1.0;
+        if (fireMs <= start) return TAPER_END_SCALE;
+        double through = (elapsedMs - start) / (fireMs - start);
+        through = Math.max(0.0, Math.min(1.0, through));
+        return 1.0 - through * (1.0 - TAPER_END_SCALE);
+    }
+
     /** The cutoff actually in force, honouring the gamepad 2 X override. */
     private double fireCutoff() {
         return cutoffOn ? FIRE_STALL_AMPS : CUTOFF_DISABLED_AMPS;
@@ -453,6 +519,10 @@ public class CompetitionTeleOp extends LinearOpMode {
         telemetry.addData("Catapult", state);
         telemetry.addData("Fire power", "%.2f   (dpad L/R)", firePower);
         telemetry.addData("Fire time", "%.0f ms (bumpers)", fireMs);
+        telemetry.addData("Taper", TAPER_START_FRAC >= 1.0
+                ? "off"
+                : String.format("from %.0f ms down to %.0f%% power",
+                        fireMs * TAPER_START_FRAC, TAPER_END_SCALE * 100));
         telemetry.addData("Last shot", lastShot);
         telemetry.addData("Cutoff", cutoffOn ? "on (X toggles)" : "*** CUTOFF OFF ***");
         telemetry.addData("Motor A", "%.1f  (cutoff %.1f)  peak %.1f", amps, cutoff, peakAmps);
