@@ -225,3 +225,52 @@ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md). The two most likely here:
   connected.
 - **Motor whines and twitches but does not move** -- not enough power for
   a loaded arm, not a seized mechanism.
+
+## Firing code changes, 2026-11-13
+
+Two changes to `CompetitionTeleOp.java`, both aimed at protecting the
+gearbox and making the logged stop time trustworthy. See
+[ARM-REDESIGN-PROPOSAL.md](ARM-REDESIGN-PROPOSAL.md) for why.
+
+### `IGNORE_MS` lowered from 80 to 25
+
+The current cutoff was blind for the first 80 ms of every throw. Two
+consequences, both bad:
+
+- An arm that reached the stopper before 80 ms kept driving at full power
+  until the window expired. Nothing in the log showed this happening.
+- "hit stop at 171 ms" could have meant contact at any time from 80 ms on,
+  so it could not be used as a measurement.
+
+**What to expect:** stop times in the log may now read *lower* than 171 ms.
+That is not the arm getting slower -- it is the code finally seeing contact
+when it happens. Record the new numbers; they replace the old ones.
+
+### End-of-arc power taper added
+
+`TAPER_START_FRAC = 0.75` and `TAPER_END_SCALE = 0.55` ease power off over
+the last quarter of `FIRE_MS` instead of firing flat out until contact.
+With `FIRE_MS = 200` the taper starts at 150 ms and the arm is at 81% power
+at the 171 ms contact point, 55% if it runs to the full 200 ms.
+
+The Driver Station now shows a **Taper** line with the start time and end
+power, so you can see what it is doing without an encoder.
+
+**Set `TAPER_START_FRAC = 1.0` to turn the taper off** and get the old
+flat-power behaviour back for comparison.
+
+**What to expect:** slightly less range (a few inches), noticeably less
+bang at the stopper. If shots start reading "timed out" instead of
+"hit stop", the taper is too deep -- raise `TAPER_END_SCALE` toward 0.70
+before touching anything else.
+
+### Test these two together, before any mechanical change
+
+1. Fire five shots. Record range, peak height, peak amps, stop time.
+2. Compare stop time against the old 171 ms. Expect it to be lower.
+3. Check the stopper bracket bolts for hole ovalling.
+4. Set `TAPER_START_FRAC = 1.0`, fire five more, and compare range. If the
+   taper costs more than ~6 in of range, raise `TAPER_END_SCALE`.
+
+Both changes compile (`scripts/check-code.sh`) but **neither has been run
+on the robot.**

@@ -75,6 +75,7 @@ edit-build-test loop.
 | [Logging](docs/LOGGING.md) | Find out what the robot actually did |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | When something is broken |
 | [Competition TeleOp](docs/COMPETITION-TELEOP.md) | Controls, tuning and first-test checklist for "1 Competition" |
+| [First test sheet](docs/FIRST-TEST-SHEET.md) | Step-by-step bring-up checks with blanks for the numbers |
 | [Catapult calibration](docs/CATAPULT-CALIBRATION.md) | A field session plan for tuning it |
 | [Bring-up card](docs/BRINGUP-CARD.md) | The operator's card for the diagnostic tests |
 | [Driver Station options](docs/DRIVER-STATION-OPTIONS.md) | Op mode grouping, for the team to decide |

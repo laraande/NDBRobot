@@ -91,10 +91,29 @@ public class CompetitionTeleOp extends LinearOpMode {
     /** Positive power throws. Measured on the robot, do not flip blindly. */
     static final DcMotorSimple.Direction CATAPULT_DIR = DcMotorSimple.Direction.FORWARD;
 
-    /** Power used for a throw, before voltage compensation. */
+    /**
+     * Power used for a throw, before voltage compensation.
+     *
+     * DELIBERATELY LOW for first testing (2026-11-13). The launch stopper is
+     * newly fitted and FIRE_STALL_AMPS has never been verified on this motor,
+     * so a full-power shot could drive into the stopper for the remainder of
+     * FIRE_MS before anything cut it. Start gentle, read the peak amps off
+     * the screen, then raise this with dpad right until the throw is right.
+     */
     static final double FIRE_POWER = 1.00;
-    /** Longest a throw may run. The current cutoff normally ends it sooner. */
-    static final double FIRE_MS = 300;
+    /**
+     * Longest a throw may run. The current cutoff normally ends it sooner.
+     *
+     * MEASURED 2026-11-13, after the stopper and launcher were adjusted: a
+     * full-power shot reaches the stopper at 171 ms ("hit stop at 171 ms,
+     * peak 8.1 A"). 200 ms leaves a small margin over that without a long
+     * dwell driving into the stopper if a tired battery slows the arm.
+     *
+     * The current cutoff is what normally ends the shot; this is the backstop.
+     * If shots start reading "timed out" instead of "hit stop", the arm is no
+     * longer reaching the stopper -- check the battery before changing this.
+     */
+    static final double FIRE_MS = 200;
     /** Quiet pause after the throw, before the arm starts coming back. */
     static final double SETTLE_MS = 200;
     /** Gentle power for the return. Negative = back toward home. */
@@ -112,23 +131,138 @@ public class CompetitionTeleOp extends LinearOpMode {
 
     // --- Current limits -------------------------------------------------
     // The only feedback this robot has. Normal running was seen up to ~4 A;
-    // the 19.2:1 motor stalls at ~9.2 A. Watch "peak A" on screen while
+    // the bare 6000 rpm motor stalls at ~9.2 A. Watch "peak A" on screen while
     // firing and set FIRE_STALL_AMPS between normal running and stall.
 
-    /** Current that means "the arm hit the fire-end stop". Set 99 to disable. */
-    static final double FIRE_STALL_AMPS = 7.0;
+    /**
+     * Current that means "the arm hit the fire-end stop". Set 99 to disable.
+     *
+     * MEASURED 2026-11-13, after the launch stopper was fitted:
+     *   0.50 power, arm never reaches the stopper -> peak 3.4-3.5 A
+     *   0.70 power, arm DOES reach the stopper    -> peak 5.7 A
+     *
+     * Free-running at 0.70 scales to about 4.9 A, so the extra ~0.8 A is the
+     * arm loading against the stopper. 5.3 sits between the two: high enough
+     * not to trip on a clean throw, low enough to catch stopper contact.
+     *
+     * The old value of 7.0 was an unverified guess and was never reached, so
+     * shots read "timed out" while the motor kept driving into the bracket
+     * for the rest of FIRE_MS. That is what this fixes.
+     *
+     * REVISED 2026-11-13 after testing at full power: 5.3 was measured at
+     * 0.70 power and turned out to trip DURING the throw at 1.00, cutting
+     * shots short. A full-power shot with the cutoff disabled went clearly
+     * further than the same shot with it on. Raised to 8.0.
+     *
+     * CAUTION, identified 2026-11-13 from the motor label: the motor fitted
+     * is a 5203 **5.2:1, 1150 rpm** (SKU 5203-2402-0019), NOT the 19.2:1 the
+     * older notes assumed. The ~9.2 A figure those notes quote belongs to the
+     * bare 6000 rpm motor. A 5.2:1 stalls LOWER than that, so 8.0 may sit at
+     * or above this motor's real stall current, which would mean the cutoff
+     * never protects against a true jam.
+     *
+     * It does currently trip on stopper contact (measured: "hit stop at
+     * 171 ms, peak 8.1 A"), so it is doing its job for the normal case. But
+     * the real stall current of this specific motor has never been measured.
+     * Measure it before trusting this as jam protection.
+     *
+     * The lesson: a current threshold measured at one power does not transfer
+     * to another, because free-running current scales with power. If
+     * FIRE_POWER changes, re-measure this.
+     *
+     * Re-measure if the power, the spring or the stopper position changes:
+     * the threshold is specific to all three.
+     */
+    static final double FIRE_STALL_AMPS = 8.0;
     /**
      * Current that means "the arm is back home against the rest stop".
-     * MUST be lower than FIRE_STALL_AMPS: the return runs at a much lower
-     * power, so it draws far less current even when fully stalled. If this is
-     * set too high the arm never "arrives" and grinds against the home stop
-     * for the whole of RETURN_MS.
+     *
+     * History worth keeping: on the PREVIOUS build the arm rested against the
+     * home stop under spring tension and drew 4.2 A at zero commanded power,
+     * through BRAKE mode. This was raised to 5.5 to clear that.
+     *
+     * After the catapult was rebuilt with a launch stopper (2026-11-13) the
+     * cocked arm reads 0.0 A -- it is held mechanically, not by the motor.
+     * So the 4.2 A floor no longer applies and 5.5 may now be too HIGH to
+     * detect the home stop on the return, in which case the return simply
+     * runs the full RETURN_MS instead of stopping early. That is untidy but
+     * not dangerous; the return runs at only 0.30 power.
+     *
+     * Lower this once a real return-into-home peak has been read off the
+     * screen. It must stay below FIRE_STALL_AMPS.
      */
-    static final double RETURN_STALL_AMPS = 3.0;
-    /** Current that aborts a manual jog, so a held dpad cannot stall the motor. */
-    static final double JOG_STALL_AMPS = 6.0;
-    /** Ignore current readings for this long after a move starts (inrush spike). */
-    static final double IGNORE_MS = 80;
+    static final double RETURN_STALL_AMPS = 5.5;
+    /**
+     * Current that aborts a manual jog, so a held dpad cannot stall the motor.
+     * Also above the 4.2 A resting reading, for the same reason.
+     */
+    static final double JOG_STALL_AMPS = 6.5;
+
+    // --- End-of-arc power taper -----------------------------------------
+    /**
+     * Fraction of FIRE_MS after which the throw starts easing off power.
+     *
+     * ADDED 2026-11-13. Firing at full power until the instant of contact
+     * means the gearbox absorbs peak torque and peak speed in the same
+     * moment, every single shot, and this robot has no fire-end hard stop to
+     * take that load instead. Tapering costs a little release speed and buys
+     * a large reduction in shock through the output stage and the stopper
+     * bracket's fasteners.
+     *
+     * 0.75 of a 200 ms FIRE_MS starts the taper at 150 ms, just before the
+     * 171 ms stop time measured on 2026-11-13. Set TAPER_START_FRAC to 1.0
+     * to disable the taper entirely and go back to flat full power.
+     *
+     * This is open-loop and time-based because there is no encoder: it
+     * assumes the arm takes roughly FIRE_MS to cross the arc. If the battery
+     * sags or the stopper moves, the taper drifts relative to actual contact.
+     * Re-check the logged stop time after changing FIRE_POWER or FIRE_MS.
+     */
+    static final double TAPER_START_FRAC = 0.75;
+    /**
+     * Power multiplier at the very end of the taper. 1.0 = no taper.
+     *
+     * Not lower than this: the arm still has to reach the stopper and trip
+     * the current cutoff. Too deep a taper and shots read "timed out"
+     * instead of "hit stop" because the arm arrives too softly.
+     */
+    static final double TAPER_END_SCALE = 0.55;
+    /**
+     * Ignore current readings for this long after a move starts (inrush spike).
+     *
+     * LOWERED from 80 to 25 on 2026-11-13. 80 ms was far more blind time than
+     * the inrush actually needs, and it was hiding the event we most wanted to
+     * measure: no "hit stop" can be reported before this many milliseconds, so
+     * an arm that reaches the stopper early kept driving at full power until
+     * the window expired. That is exactly the load the gearbox should not see.
+     *
+     * It also made the logged stop time unusable as a measurement. The
+     * "hit stop at 171 ms" reading that the arm-length analysis was based on
+     * could have been any contact from 80 ms onward, which is why no single
+     * constant-acceleration fit matched the ball's measured flight.
+     *
+     * The inrush spike on a 5203 is largely over within 20 ms. 25 leaves a
+     * small margin. If shots start cutting out at the very start of the throw,
+     * raise this in 5 ms steps -- do not go back to 80.
+     */
+    static final double IGNORE_MS = 25;
+
+    /**
+     * Longest a single manual jog may run, in milliseconds.
+     *
+     * There is NO physical hard stop at the fire end of this robot (confirmed
+     * 2026-11-13). Without one, a held dpad has nothing to stall against, so
+     * the current cutoff may never trip and the arm can be driven past the end
+     * of its useful travel into the linkage.
+     *
+     * This bounds every jog by time as well as current. Release and press
+     * again to continue moving; that is deliberate, so the arm cannot be
+     * walked to the end of its range by leaning on the dpad.
+     *
+     * Raise it once a fire-end hard stop is fitted, or lower it if 600 ms
+     * still moves the arm too far in one press.
+     */
+    static final double JOG_MAX_MS = 600;
 
     /** Battery voltage the powers above are written for. */
     static final double NOMINAL_VOLTS = 12.5;
@@ -138,6 +272,14 @@ public class CompetitionTeleOp extends LinearOpMode {
     // Tuning step sizes for the live controls.
     static final double POWER_STEP = 0.05;
     static final double TIME_STEP_MS = 25;
+    /**
+     * Gamepad 2 X toggles the fire cutoff off entirely, for experiments.
+     * With it OFF the shot runs the full FIRE_MS no matter what the current
+     * does, so the motor WILL drive into the stopper for any time left after
+     * the arm arrives. Use it to find out what the mechanism can do, not for
+     * a match. The screen shows CUTOFF OFF in capitals while it is disabled.
+     */
+    static final double CUTOFF_DISABLED_AMPS = 99.0;
     static final double MIN_FIRE_POWER = 0.10;
     static final double MIN_FIRE_MS = 25;
 
@@ -158,6 +300,7 @@ public class CompetitionTeleOp extends LinearOpMode {
     private double firePower = FIRE_POWER;
     private double fireMs = FIRE_MS;
     private double peakAmps = 0;
+    private boolean cutoffOn = true;
     private String lastShot = "none yet";
 
     @Override
@@ -188,7 +331,7 @@ public class CompetitionTeleOp extends LinearOpMode {
 
         // Previous-frame button states, for rising-edge detection.
         boolean pA = false;
-        boolean pDpadL = false, pDpadR = false, pLB = false, pRB = false;
+        boolean pDpadL = false, pDpadR = false, pLB = false, pRB = false, pX = false;
         boolean pBack = false, pStart = false;
 
         // Everything from here to the finally block must stay non-blocking.
@@ -231,6 +374,8 @@ public class CompetitionTeleOp extends LinearOpMode {
                 if (gamepad2.left_bumper && !pLB) {
                     fireMs = Math.max(MIN_FIRE_MS, fireMs - TIME_STEP_MS);
                 }
+                if (gamepad2.x && !pX) cutoffOn = !cutoffOn;
+                pX = gamepad2.x;
                 pDpadR = gamepad2.dpad_right;
                 pDpadL = gamepad2.dpad_left;
                 pRB = gamepad2.right_bumper;
@@ -279,7 +424,12 @@ public class CompetitionTeleOp extends LinearOpMode {
                         if (settled) {
                             peakAmps = Math.max(peakAmps, amps);
                         }
-                        boolean hitStop = settled && amps > FIRE_STALL_AMPS;
+                        // Ease off power toward the end of the arc so the
+                        // stopper and the gearbox do not take peak torque and
+                        // peak speed at the same instant. Re-commanded every
+                        // pass because setCat() also rescales for battery sag.
+                        setCat(firePower * taperScale(timer.milliseconds()));
+                        boolean hitStop = settled && amps > fireCutoff();
                         if (hitStop || timer.milliseconds() >= fireMs) {
                             lastShot = String.format("%s at %.0f ms, peak %.1f A",
                                     hitStop ? "hit stop" : "timed out",
@@ -336,13 +486,38 @@ public class CompetitionTeleOp extends LinearOpMode {
         if (settled) {
             peakAmps = Math.max(peakAmps, amps);
         }
-        if (settled && amps > JOG_STALL_AMPS) {
-            // Against a stop. Cut power but stay in JOG so it does not instantly
+        boolean overCurrent = settled && amps > JOG_STALL_AMPS;
+        boolean tooLong = timer.milliseconds() >= JOG_MAX_MS;
+        if (overCurrent || tooLong) {
+            // Either the arm is against something, or this press has run long
+            // enough. Cut power but stay in JOG so it does not instantly
             // retry; the operator must release the dpad to try again.
+            //
+            // The time limit matters because this robot has no fire-end hard
+            // stop, so a held dpad would otherwise have nothing to stop it.
             catapult.setPower(0);
         } else {
             setCat(power);
         }
+    }
+
+    /**
+     * Power multiplier for where we are through the throw: 1.0 for the first
+     * TAPER_START_FRAC of FIRE_MS, then ramping linearly down to
+     * TAPER_END_SCALE at the end. Open-loop; see TAPER_START_FRAC.
+     */
+    private double taperScale(double elapsedMs) {
+        double start = fireMs * TAPER_START_FRAC;
+        if (elapsedMs <= start) return 1.0;
+        if (fireMs <= start) return TAPER_END_SCALE;
+        double through = (elapsedMs - start) / (fireMs - start);
+        through = Math.max(0.0, Math.min(1.0, through));
+        return 1.0 - through * (1.0 - TAPER_END_SCALE);
+    }
+
+    /** The cutoff actually in force, honouring the gamepad 2 X override. */
+    private double fireCutoff() {
+        return cutoffOn ? FIRE_STALL_AMPS : CUTOFF_DISABLED_AMPS;
     }
 
     private void showTelemetry(MecanumDrive drive, double amps, double speed) {
@@ -350,12 +525,17 @@ public class CompetitionTeleOp extends LinearOpMode {
         switch (state) {
             case RETURNING: cutoff = RETURN_STALL_AMPS; break;
             case JOG:       cutoff = JOG_STALL_AMPS;    break;
-            default:        cutoff = FIRE_STALL_AMPS;   break;
+            default:        cutoff = fireCutoff();      break;
         }
         telemetry.addData("Catapult", state);
         telemetry.addData("Fire power", "%.2f   (dpad L/R)", firePower);
         telemetry.addData("Fire time", "%.0f ms (bumpers)", fireMs);
+        telemetry.addData("Taper", TAPER_START_FRAC >= 1.0
+                ? "off"
+                : String.format("from %.0f ms down to %.0f%% power",
+                        fireMs * TAPER_START_FRAC, TAPER_END_SCALE * 100));
         telemetry.addData("Last shot", lastShot);
+        telemetry.addData("Cutoff", cutoffOn ? "on (X toggles)" : "*** CUTOFF OFF ***");
         telemetry.addData("Motor A", "%.1f  (cutoff %.1f)  peak %.1f", amps, cutoff, peakAmps);
         telemetry.addData("Battery", "%.2f V", battery.getVoltage());
         telemetry.addData("Drive", "%s (%.2f), %s",

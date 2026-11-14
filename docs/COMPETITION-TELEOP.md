@@ -83,6 +83,28 @@ does nothing until the arm is back to `IDLE`. The current state is on screen.
 
 ---
 
+## No fire-end hard stop
+
+Confirmed 2026-11-13: this robot has a hard stop at **home** but **none at
+the fire end**. That changes what the firing logic can rely on.
+
+- `FIRE_STALL_AMPS` will effectively never trip on a throw, because there is
+  nothing to stall against. **`FIRE_MS` is the control that ends every
+  shot**, not a backstop. Expect `Last shot` to always read `timed out`.
+- Distance is therefore tuned almost entirely with `FIRE_MS` and
+  `FIRE_POWER`. Small time changes matter more than they would otherwise.
+- Manual jogs are limited to `JOG_MAX_MS` (600 ms) per press, since a held
+  dpad has nothing to stop it at that end. Release and press again to keep
+  moving.
+- The **return** is unaffected: the home stop exists, so
+  `RETURN_STALL_AMPS` has something real to detect.
+
+Once a fire-end stop is fitted, measure the peak amps on a jog into it, set
+`FIRE_STALL_AMPS` between normal running and that peak, and shots will start
+ending on geometry instead of on the clock -- which repeats far better.
+
+---
+
 ## How the catapult works without an encoder
 
 The motor position reads 0 forever, so nothing can be measured. Instead:
