@@ -27,7 +27,8 @@ motors. They are linked by a cable and act as one system.
 | Control | 1 | back right wheel | `back right` |
 | Control | 2 | front left wheel | `front left` |
 | Control | 3 | front right wheel | `front right` |
-| Expansion | 0 | catapult | `catapult` |
+| Expansion | 0 | catapult (arm 1, 5.2:1, A fires) | `catapult` |
+| Expansion | 1 | arm 2 (50.9:1, Y fires, added 2026-11-14) | `catapult2` |
 
 **The names have spaces in them.** `back left`, not `backLeft`. They must
 match the configuration on the Driver Hub exactly or the code cannot find
